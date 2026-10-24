@@ -3,6 +3,8 @@
 //  Vanilla JS + Firebase (Auth / Firestore / Storage). מצב מקומי כגיבוי.
 // =====================================================================
 import { firebaseConfig } from './firebase-config.js';
+import { I18N, tr, initI18n, setLang, isEn, LOC } from './i18n.js';
+import { FEATURES, AREAS, startTour, newSince, seenVersion, markSeen, cmpV } from './help.js';
 // חיבור Firebase: מהקובץ firebase-config.js, ואם ריק – מה שהודבק בהגדרות האפליקציה (נשמר במכשיר)
 const FB = (() => { if (firebaseConfig.apiKey) return { ...firebaseConfig, _src: 'file' }; try { const c = JSON.parse(localStorage.getItem('tt-firebase')); if (c?.apiKey) return { ...c, _src: 'device' }; } catch (e) { } return {}; })();
 
@@ -12,9 +14,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '2.0.1';
-const APP_BUILD = '2026-10-24 17:25';
+const APP_VERSION = '2.1.0';
+const APP_BUILD = '2026-10-24 18:30';
 const CHANGELOG = [
+  ['2.1.0', '24/10/2026 18:30', ['🌐 המערכת כולה בעברית ובאנגלית – כפתור שפה בסרגל העליון, ברירת מחדל לפי המכשיר, כיוון מימין/משמאל אוטומטי', '❓ מרכז עזרה וסיור מודרך אינטראקטיבי: הדגשה של כל יכולת במסך, הראה לי, חיפוש', '✨ מה חדש אוטומטי בכל גרסה – נבנה מרשימת היכולות, והסוכן החכם יודע לענות איך עושים']],
   ['2.0.1', '24/10/2026 17:25', ['לוגו שקוף (בלי רקע לבן), עם גרסה בהירה לטקסט במצב כהה', 'תוקנה בניית האתר ב-Netlify (סורק הסודות)']],
   ['2.0.0', '24/10/2026 16:40', ['🏠 לוח בקרה אישי לכל לקוח: הטיול הבא עם ספירה לאחור, סטטיסטיקות (טיולים, ימים בדרכים, יעדים, תקציב), המשך מאיפה שעצרת', 'היסטוריית טיולים: קרובים / היסטוריה / ארכיון / סל מחזור, עם חיפוש', '🧭 אשף טיול חדש ב-4 צעדים: יעד ותאריכים, נוסעים ונקודות יציאה, סגנון ותקציב, מסלול', '✨ הסוכן החכם בונה טיוטת מסלול יומי מלאה – או העתקת מסלול מטיול קודם', '👤 פרופיל אישי: שם, שדה בית, מלווים קבועים וסגנון – נשמר בענן ומתמלא אוטומטית', '📜 היסטוריית שינויים בכל טיול (מי שינה מה ומתי)', '📄 שכפול טיול לתאריכים חדשים, 🗄️ ארכיון, 🗑️ סל מחזור עם שחזור']],
   ['1.13.1', '24/10/2026 16:05', ['הסוכן החכם עבר לסוף התפריט ומעוצב כמו שאר הכפתורים (מודגש רק כשהחלון פתוח)']],
@@ -53,7 +56,8 @@ const clone = o => JSON.parse(JSON.stringify(o));
 const parseDate = s => { if (!s) return null; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
 const isoDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const DOW = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
-const fmtDate = (s, withDow = true) => { const d = parseDate(s); if (!d) return ''; return (withDow ? `יום ${DOW[d.getDay()]}, ` : '') + `${d.getDate()}/${d.getMonth() + 1}`; };
+const DOW_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const fmtDate = (s, withDow = true) => { const d = parseDate(s); if (!d) return ''; return (withDow ? (isEn() ? `${DOW_EN[d.getDay()]}, ` : `יום ${DOW[d.getDay()]}, `) : '') + `${d.getDate()}/${d.getMonth() + 1}`; };
 const daysBetween = (a, b) => Math.round((parseDate(b) - parseDate(a)) / 86400000);
 const CUR = { ILS: '₪', USD: '$', EUR: '€' };
 const fmtMoney = (n, c = 'ILS') => `${CUR[c] || ''}${Math.round(n || 0).toLocaleString('en-US')}`;
@@ -288,7 +292,7 @@ function go(hash) { if (location.hash !== hash) location.hash = hash; else rende
 function readRoute() {
   const m = location.hash.match(/^#\/trip\/([^/]+)(?:\/(\w+))?/);
   state.tripId = m ? m[1] : null; state.tab = m?.[2] || 'overview';
-  state.page = /^#\/profile/.test(location.hash) ? 'profile' : /^#\/new/.test(location.hash) ? 'new' : null;
+  state.page = /^#\/profile/.test(location.hash) ? 'profile' : /^#\/new/.test(location.hash) ? 'new' : /^#\/help/.test(location.hash) ? 'help' : null;
   if (state.page !== 'new') state.wiz = null;
 }
 window.addEventListener('hashchange', () => { readRoute(); render(); window.scrollTo(0, 0); });
@@ -304,8 +308,9 @@ function render() {
   if (state.store.mode === 'cloud' && !state.store.user) { tabbar.hidden = true; app.innerHTML = renderAuth(); bindAuth(); return; }
   const trip = curTrip();
   if (!trip && state.page === 'profile') { tabbar.hidden = true; app.innerHTML = renderProfile(); bindProfile(); return; }
+  if (!trip && state.page === 'help') { tabbar.hidden = true; app.innerHTML = renderHelp(); bindHelp(); return; }
   if (!trip && state.page === 'new') { tabbar.hidden = true; app.innerHTML = renderWizard(); bindWizard(); return; }
-  if (!trip) { tabbar.hidden = true; app.innerHTML = renderTripList(); bindTripList(); return; }
+  if (!trip) { tabbar.hidden = true; app.innerHTML = renderTripList(); bindTripList(); maybeOfferHelp(); return; }
   try { localStorage.setItem('tt-last', trip.id); } catch (e) { }
   tabbar.hidden = false;
   $$('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
@@ -401,7 +406,7 @@ function tripCard(t, f) {
     <div class="row"><span style="font-size:calc(30px * var(--fs))">${esc(t.emoji)}</span><div class="spacer">
       <div class="title">${esc(t.name)} ${f === 'trash' ? '' : `<span class="mini rename" role="button" tabindex="0" data-rename="${t.id}" aria-label="שינוי שם">✏️</span>`}</div>
       <div class="muted small">${esc(t.destination || '')}${t.destination ? ' · ' : ''}${fmtRange(t.start, t.end)} · ${tripLen(t)} ימים · ${(t.travelersList || []).map(x => esc(x.name)).join(', ') || t.travelers + ' נוסעים'}</div></div>
-      <span class="chip ${f === 'trash' ? 'warn' : st.cls}">${f === 'trash' ? 'נמחק ' + new Date(t.deletedAt).toLocaleDateString('he-IL') : st.txt}</span></div>
+      <span class="chip ${f === 'trash' ? 'warn' : st.cls}">${f === 'trash' ? 'נמחק ' + new Date(t.deletedAt).toLocaleDateString(LOC()) : st.txt}</span></div>
     ${plan && f !== 'trash' ? `<div class="bar gold" style="margin-top:12px"><i style="width:${Math.min(100, spent / plan * 100)}%"></i></div><div class="small muted" style="margin-top:4px">${fmtMoney(spent)} שולם מתוך ${fmtMoney(plan)}</div>` : ''}
     <div class="tacts">${acts}</div></div>`;
 }
@@ -590,7 +595,7 @@ async function aiPlanTrip(t, d) {
 היום הראשון: נחיתה והתמקמות (מעט תחנות). היום האחרון: יציאה. סדר גאוגרפי הגיוני, שעות ריאליות, ארוחות בתוך המסלול.
 החזר JSON בלבד, בלי טקסט נוסף, בפורמט:
 {"days":[{"date":"YYYY-MM-DD","title":"כותרת קצרה ליום","notes":"טיפ אחד קצר","stops":[{"time":"HH:MM","title":"שם התחנה בעברית","place":"Place name in English, City","notes":"משפט קצר"}]}]}
-צריך בדיוק ${days.length} ימים, בתאריכים: ${days.join(', ')}.`;
+צריך בדיוק ${days.length} ימים, בתאריכים: ${days.join(', ')}.${isEn() ? '\nIMPORTANT: write every title and note in English (place stays in English).' : ''}`;
   const mode = await aiEngine();
   let out;
   if (mode === 'claude') {
@@ -646,7 +651,7 @@ function bindProfile() {
 // ---------- 📜 היסטוריית שינויים בטיול ----------
 function renderTripLog(t) {
   const L = [...(t.log || [])].reverse(); if (!L.length) return '';
-  const fmt = ts => new Date(ts).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const fmt = ts => new Date(ts).toLocaleString(LOC(), { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
   return `<details class="card section tlog"><summary><b>📜 היסטוריית שינויים</b> <span class="small muted">(${L.length})</span></summary>
     <ul class="list">${L.slice(0, 40).map(x => `<li class="li"><div class="main"><div class="t">${esc(x.what)}</div><div class="small muted">${esc(x.who || '')} · ${fmt(x.t)}</div></div></li>`).join('')}</ul></details>`;
 }
@@ -852,7 +857,7 @@ function renderPeople(t) {
   const KIND = { own: ['אישי', 'gold'], shared: ['משותף', ''], est: ['הערכה', 'est'] };
   const cards = pc.people.map(p => {
     const byCat = CATS.map(c => ({ c, items: p.items.filter(i => i.cat === c.id) })).filter(x => x.items.length);
-    return `<div class="card person"><div class="row"><span class="pava">${esc(p.name.slice(0, 1))}</span><div class="spacer"><b class="pname">${esc(p.name)}</b><div class="small muted">✈️ יוצא/ת מ-${esc(p.origin || '—')}</div></div>
+    return `<div class="card person"><div class="row"><span class="pava">${esc(tr(p.name).slice(0, 1))}</span><div class="spacer"><b class="pname">${esc(p.name)}</b><div class="small muted">✈️ יוצא/ת מ-${esc(p.origin || '—')}</div></div>
         <div style="text-align:end"><div class="ptotal">${fmtMoney(p.total)}</div><div class="small muted" dir="ltr">≈ ${usd(p.total)}</div></div></div>
       <div class="pbars"><span style="flex:${p.own}" class="b-own" title="אישי"></span><span style="flex:${p.shared}" class="b-sh" title="משותף"></span><span style="flex:${p.est}" class="b-est" title="הערכה"></span></div>
       <div class="plegend small"><span><i class="b-own"></i>אישי ${fmtMoney(p.own)}</span><span><i class="b-sh"></i>חלק במשותף ${fmtMoney(p.shared)}</span><span><i class="b-est"></i>הערכה ${fmtMoney(p.est)}</span></div>
@@ -1211,6 +1216,7 @@ if ('speechSynthesis' in window) { loadVoices(); speechSynthesis.onvoiceschanged
 const hasVoice = lang => voices.some(v => v.lang?.toLowerCase().startsWith(lang));
 const speechQueue = [];
 function speak(text, lang = 'he', id = null) {
+  if (isEn()) { text = tr(text); lang = 'en'; }
   if (!('speechSynthesis' in window)) { toast('הדפדפן לא תומך בהקראה'); return; }
   speechQueue.length = 0; speechSynthesis.cancel(); enqueue(text, lang, id);
 }
@@ -1248,6 +1254,7 @@ async function fetchWiki(lat, lon, radius) {
     const j = await (await fetch(u)).json();
     return Object.values(j.query?.pages || {}).filter(p => p.coordinates && p.extract).map(p => ({ id: 'w' + lang + p.pageid, title: p.title, text: p.extract, lang, lat: p.coordinates[0].lat, lon: p.coordinates[0].lon, img: p.thumbnail?.source, url: p.fullurl }));
   };
+  if (isEn()) { let en = []; try { en = await one('en'); } catch (e) { } return en.map(x => ({ ...x, d: distM(lat, lon, x.lat, x.lon) })).sort((a, b) => a.d - b.d).slice(0, 25); }
   let he = []; try { he = await one('he'); } catch (e) { }
   let en = []; try { en = await one('en'); } catch (e) { }
   const heTitles = new Set(he.map(x => x.title));
@@ -1443,6 +1450,7 @@ const scrollToResults = () => setTimeout(() => $('#results')?.scrollIntoView({ b
 const TRANSLATE = u => `https://translate.google.com/translate?sl=auto&tl=iw&hl=iw&u=${encodeURIComponent(u)}`;
 function heLink(raw) {
   let u; try { u = new URL(raw); } catch (e) { return { url: raw, he: false }; }
+  if (isEn()) return { url: raw, he: false, en: true };
   const h = u.hostname.replace(/^www\./, ''), set = (k, v) => u.searchParams.set(k, v);
   if (h.endsWith('.co.il') || h === 'skygini.com') return { url: u.href, he: true };
   if (h === 'skyscanner.co.il') { set('locale', 'he-IL'); return { url: u.href, he: true }; }
@@ -1456,7 +1464,7 @@ function heLink(raw) {
   return { url: TRANSLATE(raw), he: false, orig: raw };
 }
 const linkGrid = links => `<div class="linkgrid">${links.map(l => { const x = heLink(l.url); return `<div class="card linkcard${l.il ? ' il' : ''}"><a class="lmain" href="${esc(x.url)}" target="_blank" rel="noopener"${l.copy ? ` data-copy="${esc(l.copy)}"` : ''}><span class="lico">${l.ico}</span><div><b>${l.name}</b><div class="small muted">${l.note}</div></div></a>
-  <div class="lfoot"><span class="chip ${x.he ? 'ok' : 'gold'}">${l.il ? '🇮🇱 ישראלי' : x.he ? 'עברית' : 'מתורגם'}</span>${x.orig ? `<a class="small muted" href="${esc(x.orig)}" target="_blank" rel="noopener">מקור ↗</a>` : ''}</div></div>`; }).join('')}</div>`;
+  <div class="lfoot">${x.en && !l.il ? '' : `<span class="chip ${x.he ? 'ok' : 'gold'}">${l.il ? '🇮🇱 ישראלי' : x.he ? 'עברית' : 'מתורגם'}</span>`}${x.orig ? `<a class="small muted" href="${esc(x.orig)}" target="_blank" rel="noopener">מקור ↗</a>` : ''}</div></div>`; }).join('')}</div>`;
 function renderSearch(t) {
   const k = hubState.kind;
   const seg = `<div class="kinds">${KINDS.map(x => `<button data-kind="${x.id}" class="${x.id === k ? 'active' : ''}"><span>${x.ico}</span>${x.name}</button>`).join('')}</div>`;
@@ -1540,7 +1548,7 @@ async function openReviews(name, where) {
     const pl = j.results?.[0];
     if (!pl) throw new Error(j.providers?.[0]?.status === 'off' ? 'חוות דעת חיות יופיעו אחרי חיבור GOOGLE_PLACES_KEY.' : 'לא נמצאו חוות דעת למקום הזה.');
     $('#modalBody').innerHTML = `<div class="card"><div class="row"><b class="spacer">${esc(pl.name)}</b><span class="rstars">${stars(pl.rating)}</span></div>
-        <div class="small muted">⭐ ${pl.rating ?? '–'} מתוך 5 · ${(pl.count || 0).toLocaleString('he-IL')} ביקורות</div>${pl.summary ? `<p class="small" style="margin:8px 0 0">${esc(pl.summary)}</p>` : ''}</div>
+        <div class="small muted">⭐ ${pl.rating ?? '–'} מתוך 5 · ${(pl.count || 0).toLocaleString(LOC())} ביקורות</div>${pl.summary ? `<p class="small" style="margin:8px 0 0">${esc(pl.summary)}</p>` : ''}</div>
       ${pl.reviews.length ? pl.reviews.map(v => `<div class="card review"><div class="row"><span class="rstars">${stars(v.rating)}</span><span class="spacer"></span><span class="small muted">${esc(v.author)}${v.when ? ' · ' + esc(v.when) : ''}</span></div>
         <p class="small" style="margin:6px 0 0">${esc(v.text)}</p>${v.original && v.original !== v.text ? `<details class="small muted"><summary>מקור</summary>${esc(v.original)}</details>` : ''}</div>`).join('') : '<div class="small muted">אין טקסט ביקורות זמין.</div>'}
       <div class="small muted">ממוין מהדירוג הגבוה. מתורגם לעברית ע״י Google.</div>${links}`;
@@ -1755,7 +1763,7 @@ async function toggleWatch(id) {
   await mutate(x => { x.watch ||= []; if (on) x.watch = x.watch.filter(w => w.key !== it.key); else x.watch.push({ id: uid(), kind: it.kind, key: it.key, label: it.label, query: it.query, base: it.ils, last: it.ils, history: [{ t: Date.now(), ils: it.ils }], checked: Date.now() }); });
   toast(on ? 'הוסר מהמעקב' : '🔔 נעקוב ונתריע כשהמחיר יורד');
 }
-function notify(title, body) { try { if ('Notification' in window && Notification.permission === 'granted') new Notification(title, { body, icon: 'logo.svg' }); } catch (e) { } toast(title + ' – ' + body); }
+function notify(title, body) { try { if ('Notification' in window && Notification.permission === 'granted') new Notification(tr(title), { body: tr(body), icon: 'logo.svg' }); } catch (e) { } toast(title + ' – ' + body); }
 // ---- בדיקה חיה: כל מנוע בנפרד, עם חיווי, ואז פתיחת התוצאות ----
 const WATCH_PROVIDERS = { flight: ['Duffel', 'Google Flights', 'Aviasales'], hotel: ['Google Hotels'] };
 const PROV_ICO = { 'Duffel': '🛫', 'Google Flights': '🟢', 'Aviasales': '🔶', 'Google Hotels': '🏨' };
@@ -1822,7 +1830,7 @@ function drawWatchPanel() {
   const head = watchRun.busy
     ? `<div class="wp-head"><div class="wp-radar"><i></i><i></i><i></i><span>🔎</span></div><div class="spacer"><b>בודק עכשיו בכל המנועים באונליין…</b><div class="small muted">${doneN}/${all.length} מנועים החזירו תשובה</div></div><button class="mini" data-wpclose aria-label="סגירה">✕</button></div>
        <div class="bar gold wp-bar"><i style="width:${Math.max(6, pct)}%"></i></div>`
-    : `<div class="wp-head"><span class="wp-done">✓</span><div class="spacer"><b>הבדיקה הסתיימה</b><div class="small muted">נבדק עכשיו · ${new Date(watchRun.last).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div></div><button class="mini" data-wpclose aria-label="סגירה">✕</button></div>`;
+    : `<div class="wp-head"><span class="wp-done">✓</span><div class="spacer"><b>הבדיקה הסתיימה</b><div class="small muted">נבדק עכשיו · ${new Date(watchRun.last).toLocaleTimeString(LOC(), { hour: '2-digit', minute: '2-digit' })}</div></div><button class="mini" data-wpclose aria-label="סגירה">✕</button></div>`;
   const stIco = { run: '<span class="spin"></span>', ok: '✓', off: '○', err: '⚠' };
   const stTxt = p => p.st === 'run' ? 'בודק…' : p.st === 'ok' ? `${p.count} תוצאות` : p.st === 'off' ? 'לא מחובר' : 'לא זמין';
   const body = R.map(r => {
@@ -1873,7 +1881,7 @@ function renderWatches(t) {
   const ws = t.watch || []; if (!ws.length) return '';
   return `<div class="card watchbox"><div class="row"><b class="spacer">🔔 מחירים במעקב (${ws.length})</b><button class="btn sm green" id="checkNow">${watchRun.busy ? '<span class="spin"></span> בודק…' : '🔄 בדוק עכשיו'}</button></div>
     <ul class="list">${ws.map(w => { const d = w.last - w.base; return `<li class="li"><div class="ico">${w.kind === 'flight' ? '✈️' : '🏨'}</div><div class="main"><div class="t">${esc(w.label)}</div>
-      <div class="small muted">התחלה ${fmtMoney(w.base)} · עכשיו <b style="color:${d < 0 ? 'var(--green)' : d > 0 ? 'var(--danger)' : 'inherit'}">${fmtMoney(w.last)}</b>${d ? ` (${d < 0 ? '↓' : '↑'}${fmtMoney(Math.abs(d))})` : ''}${w.cheapest && w.cheapest < w.last ? ` · הזול בשוק ${fmtMoney(w.cheapest)}` : ''} · נבדק ${w.checked ? new Date(w.checked).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</div></div>
+      <div class="small muted">התחלה ${fmtMoney(w.base)} · עכשיו <b style="color:${d < 0 ? 'var(--green)' : d > 0 ? 'var(--danger)' : 'inherit'}">${fmtMoney(w.last)}</b>${d ? ` (${d < 0 ? '↓' : '↑'}${fmtMoney(Math.abs(d))})` : ''}${w.cheapest && w.cheapest < w.last ? ` · הזול בשוק ${fmtMoney(w.cheapest)}` : ''} · נבדק ${w.checked ? new Date(w.checked).toLocaleString(LOC(), { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</div></div>
       <span class="${d <= 0 ? 'yes' : 'no'}">${spark(w.history)}</span><button class="mini" data-unwatch="${w.id}" aria-label="הסר">✕</button></li>`; }).join('')}</ul>
     <div class="wp-foot" style="border:0;padding:8px 0 0"><div class="small muted" style="margin-bottom:6px">🔁 בדיקה אוטומטית ${watchEvery(t) ? `כל <b>${everyLabel(watchEvery(t))}</b> כשהאפליקציה פתוחה · הבאה בעוד <b id="wNext">${fmtLeft(nextCheckIn(t) || 0)}</b>` : 'כבויה'} · התראה כשמחיר יורד</div>
     <div class="wp-every">${WATCH_INTERVALS.map(([m, l]) => `<button class="chip ${m === watchEvery(t) ? 'on' : ''}" data-wevery="${m}">${l}</button>`).join('')}<label class="chip wp-custom">אחר <input type="number" min="5" max="1440" step="5" inputmode="numeric" placeholder="דק׳" data-wcustom value="${WATCH_INTERVALS.some(x => x[0] === watchEvery(t)) ? '' : watchEvery(t)}"></label></div></div></div>`;
@@ -2013,6 +2021,7 @@ function tripContext(t) {
   L.push(`שער: 1$=₪${t.rates?.USD || 3.1}. תקציב מתוכנן ₪${Math.round(tot.planned)}, שולם ₪${Math.round(tot.actual)}, מחויב ₪${Math.round(tot.committed)}.`);
   L.push('תקציב לפי קטגוריה: ' + CATS.map(c => `${c.name} ₪${t.budget?.[c.id] || 0} (בפועל ₪${Math.round(tot.byCat[c.id] || 0)})`).join(', '));
   const pcx = personCosts(t); if (pcx) L.push('עלות לכל נוסע: ' + pcx.people.map(p => `${p.name} (מ-${p.origin}) ₪${Math.round(p.total)} = אישי ₪${Math.round(p.own)} + משותף ₪${Math.round(p.shared)} + הערכה ₪${Math.round(p.est)}`).join(' | '));
+  L.push('מדריך המערכת (לשאלות "איך עושים"): ' + FEATURES.map(f => f.he[0] + ': ' + f.he[1]).join(' | '));
   L.push('מסלול:'); tripDays(t).forEach(d => { const x = t.days[d] || {}; L.push(`- ${d} ${x.title || ''}${x.notes ? ' [' + x.notes + ']' : ''}: ` + (x.stops || []).map(s => `${s.time} ${s.title}${s.place ? ' @ ' + s.place : ''}`).join(' | ')); });
   L.push('הזמנות:'); (t.bookings || []).forEach(b => L.push(`- ${bookType(b.type).name}: ${b.title} · ${b.provider || ''} · ${b.start || ''}${b.end ? '→' + b.end : ''} · ${b.price} ${b.currency} · ${STATUS[b.status]?.name || b.status}${b.notes ? ' · ' + b.notes.slice(0, 160) : ''}`));
   const open = (t.lists?.tasks || []).filter(x => !x.done).map(x => x.text); if (open.length) L.push('משימות פתוחות: ' + open.join('; '));
@@ -2076,7 +2085,7 @@ async function aiAsk(text) {
   AI.turns.push({ role: 'user', content: text.trim() }); aiSave();
   AI.busy = true; AI.ctl = new AbortController(); AI.notes = []; aiRender(); const live = $('#aiLive');
   const show = txt => { if (live) live.innerHTML = aiFmt(txt); aiScroll(); };
-  const ctx = AI_RULES + '\n\n=== נתוני הטיול ===\n' + tripContext(t);
+  const ctx = AI_RULES + (isEn() ? '\n\nIMPORTANT: The app is in English for this user – always answer in English.' : '') + '\n\n=== נתוני הטיול ===\n' + tripContext(t);
   const hist = AI.turns.slice(-12);
   try {
     const mode = await aiEngine(); let answer;
@@ -2128,7 +2137,7 @@ function setupAdvisor() {
   $('#aiStop').onclick = () => AI.ctl?.abort();
   $('#aiForm').onsubmit = e => { e.preventDefault(); const i = $('#aiInput'); const v = i.value; i.value = ''; aiAsk(v); };
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition; const mic = $('#aiMic');
-  if (!SR) mic.hidden = true; else mic.onclick = () => { const r = new SR(); r.lang = 'he-IL'; r.interimResults = false; mic.classList.add('speaking');
+  if (!SR) mic.hidden = true; else mic.onclick = () => { const r = new SR(); r.lang = LOC(); r.interimResults = false; mic.classList.add('speaking');
     r.onresult = ev => { const v = ev.results[0][0].transcript; aiAsk(v); }; r.onend = () => mic.classList.remove('speaking'); r.onerror = () => { mic.classList.remove('speaking'); toast('לא הצלחתי לשמוע – נסו שוב'); }; r.start(); };
 }
 
@@ -2190,8 +2199,10 @@ function openUserMenu() {
       <div class="small muted" style="margin-top:6px">${(t.inviteEmails || []).map(esc).join(', ') || 'אין עדיין שותפים'}</div></div>` : ''}
     <div class="grid">
       <div class="row" style="gap:8px"><button type="button" class="btn spacer" id="homeMenuBtn">🏠 כל הטיולים</button><button type="button" class="btn spacer" id="profMenuBtn">👤 הפרופיל שלי</button></div>
+      <button type="button" class="btn" id="helpMenuBtn">❓ מרכז העזרה וסיור מודרך</button>
       <button type="button" class="btn" id="keysBtn">🔑 מפתחות API וחיבור ענן</button>
       <button type="button" class="btn" id="verBtn">ℹ️ גרסה ${APP_VERSION} · ${APP_BUILD.split(' ')[0].split('-').reverse().join('/')} ${APP_BUILD.split(' ')[1]} · מה חדש</button>
+      <div class="theme-seg lang-seg" data-notr><button type="button" class="btn ${!isEn() ? 'active' : ''}" data-langpick="he">🇮🇱 עברית</button><button type="button" class="btn ${isEn() ? 'active' : ''}" data-langpick="en">🇺🇸 English</button></div>
       <div class="theme-seg">${THEMES.map(([id, ico, name]) => `<button type="button" class="btn" data-themepick="${id}">${ico} ${name.split(' ')[0]}</button>`).join('')}</div>
       <button type="button" class="btn" id="exportBtn">⬇️ ייצוא גיבוי (JSON)</button>
       <label class="btn" style="text-align:center">⬆️ ייבוא גיבוי<input type="file" id="importFile" accept="application/json" hidden></label>
@@ -2202,6 +2213,8 @@ function openUserMenu() {
   dlg.showModal();
   $('#verBtn').onclick = () => { dlg.close(); openChangelog(); };
   $('#keysBtn').onclick = () => { dlg.close(); openKeysMenu(); };
+  $$('[data-langpick]').forEach(b => b.onclick = () => { if (b.dataset.langpick !== I18N.lang) setLang(b.dataset.langpick); });
+  $('#helpMenuBtn').onclick = () => { dlg.close(); go('#/help'); };
   $('#homeMenuBtn').onclick = () => { dlg.close(); go('#/'); };
   $('#profMenuBtn').onclick = () => { dlg.close(); go('#/profile'); };
   $$('.theme-seg [data-themepick]').forEach(b => b.onclick = () => setTheme(b.dataset.themepick)); applyTheme();
@@ -2292,12 +2305,82 @@ async function refreshKeyStatus() {
   $$('[data-kst]').forEach(c => { const v = st.keys[c.dataset.kst]; c.textContent = v === 'server' ? '✓ ב-Netlify' : v === 'device' ? '✓ מהמכשיר' : '✗ חסר'; c.className = 'chip ' + (v === 'none' ? 'warn' : 'ok'); });
 }
 
+
+// =====================================================================
+//  ❓ מרכז העזרה + סיורים – נבנים אוטומטית מ-FEATURES (help.js)
+// =====================================================================
+const tourTrip = () => curTrip() || state.trips.find(t => !t.deletedAt) || null;
+function helpCtx(onEnd) {
+  return { en: isEn(), go, toast, onEnd,
+    routeOf: f => { if (!f.route.startsWith('trip:')) return f.route; const t = tourTrip(); return t ? `#/trip/${t.id}/${f.route.slice(5)}` : null; } };
+}
+const AREA_ORDER = ['home', 'trip', 'app'];
+function fullTourSteps() { const hasTrip = !!tourTrip(); return AREA_ORDER.flatMap(a => FEATURES.filter(f => f.tour && f.area === a && (hasTrip || !f.route.startsWith('trip:')))); }
+function whatsNewSteps() {
+  const seen = seenVersion(); let list = newSince(seen, APP_VERSION);
+  if (!list.length) { const prev = CHANGELOG[1]?.[0]; list = FEATURES.filter(f => !prev || cmpV(f.v, prev) > 0); }
+  const hasTrip = !!tourTrip(); return list.filter(f => hasTrip || !f.route.startsWith('trip:'));
+}
+function runTour(steps, after) { $('#helpOffer')?.remove(); markSeen(APP_VERSION); startTour(steps, helpCtx(done => { if (done) toast(isEn() ? '🎉 That’s it! Everything is in the Help center (❓)' : '🎉 זהו! הכל נמצא במרכז העזרה (❓)'); after?.(); })); }
+let helpOffered = false;
+function maybeOfferHelp() {
+  if (helpOffered || document.body.classList.contains('touring')) return; helpOffered = true;
+  const seen = seenVersion(); const en = isEn();
+  let msg = null, steps = null;
+  if (!seen) { msg = en ? '👋 Welcome to Tizon Tour! Take a 1-minute tour?' : '👋 ברוכים הבאים ל-Tizon Tour! סיור של דקה?'; steps = fullTourSteps(); }
+  else if (cmpV(APP_VERSION, seen) > 0) { const n = newSince(seen, APP_VERSION); if (n.length) { msg = en ? `✨ New in version ${APP_VERSION}: ${n.length} new features – show me?` : `✨ חדש בגרסה ${APP_VERSION}: ${n.length} יכולות חדשות – להראות?`; steps = n; } else markSeen(APP_VERSION); }
+  if (!msg) return;
+  setTimeout(() => {
+    if (document.getElementById('helpOffer') || document.body.classList.contains('touring')) return;
+    const el = document.createElement('div'); el.id = 'helpOffer'; el.className = 'help-offer card'; el.setAttribute('data-notr', '');
+    el.innerHTML = `<div>${msg}</div><div class="row" style="gap:6px;margin-top:8px"><button class="btn sm green" data-ho="go">${en ? 'Show me' : 'הראה לי'}</button><button class="btn sm" data-ho="help">${en ? 'Help center' : 'מרכז העזרה'}</button><span class="spacer"></span><button class="btn sm ghost" data-ho="later">${en ? 'Later' : 'אחר כך'}</button></div>`;
+    document.body.appendChild(el);
+    el.querySelector('[data-ho="go"]').onclick = () => runTour(steps);
+    el.querySelector('[data-ho="help"]').onclick = () => { el.remove(); markSeen(APP_VERSION); go('#/help'); };
+    el.querySelector('[data-ho="later"]').onclick = () => { el.remove(); markSeen(APP_VERSION); };
+  }, 900);
+}
+function renderHelp() {
+  const en = isEn(), seen = seenVersion(), q = (state.helpQ || '').trim().toLowerCase();
+  const L = (h, e) => en ? e : h;
+  const match = f => !q || [...f.he, ...f.en].join(' ').toLowerCase().includes(q);
+  const isNew = f => !seen || cmpV(f.v, seen) > 0 || cmpV(f.v, CHANGELOG[1]?.[0] || '0') > 0;
+  const groups = AREA_ORDER.map(a => ({ a, list: FEATURES.filter(f => f.area === a && match(f)) })).filter(g => g.list.length);
+  return `<div data-notr><div class="section-head"><div><h1 style="margin:0">${L('מרכז העזרה', 'Help center')}</h1><div class="small muted">${L(`${FEATURES.length} יכולות · גרסה ${APP_VERSION}`, `${FEATURES.length} features · version ${APP_VERSION}`)}</div></div><button class="btn ghost" data-go="#/">${L('← לטיולים', '← Trips')}</button></div>
+    <div class="help-actions">
+      <button class="card help-act" data-hact="tour"><span>▶️</span><b>${L('סיור מודרך מלא', 'Full guided tour')}</b><small>${L(`${fullTourSteps().length} שלבים, כדקה`, `${fullTourSteps().length} steps, about a minute`)}</small></button>
+      <button class="card help-act" data-hact="new"><span>✨</span><b>${L('מה חדש', 'What’s new')}</b><small>${L(`גרסה ${APP_VERSION} · ${whatsNewSteps().length} יכולות`, `Version ${APP_VERSION} · ${whatsNewSteps().length} features`)}</small></button>
+      <button class="card help-act" data-hact="log"><span>📜</span><b>${L('יומן גרסאות', 'Version history')}</b><small>${L('מה השתנה ומתי', 'What changed and when')}</small></button>
+      <button class="card help-act" data-hact="ask"><span>✨</span><b>${L('שאלו את הסוכן החכם', 'Ask the Smart Agent')}</b><small>${L('"איך משתפים טיול?"', '"How do I share a trip?"')}</small></button>
+    </div>
+    <input id="helpSearch" type="search" class="section" style="width:100%" placeholder="${L('🔎 חיפוש: תקציב, מפה, שיתוף, מחירים…', '🔎 Search: budget, map, sharing, prices…')}" value="${esc(state.helpQ || '')}">
+    <div id="helpList">${groups.map(g => `<h2 class="section">${AREAS[g.a][0]} ${en ? AREAS[g.a][2] : AREAS[g.a][1]}</h2><div class="help-grid">${g.list.map(f => `<div class="card help-card"><div class="row"><b class="spacer">${(en ? f.en : f.he)[0]}</b>${isNew(f) ? `<span class="chip ok">${L('חדש', 'New')}</span>` : ''}<span class="chip">v${f.v}</span></div><div class="small muted" style="margin:6px 0 10px">${(en ? f.en : f.he)[1]}</div>${f.sel ? `<button class="btn sm" data-hshow="${f.id}">📍 ${L('הראה לי', 'Show me')}</button>` : ''}</div>`).join('')}</div>`).join('') || `<div class="card empty">${L('לא נמצא – נסו מילה אחרת או שאלו את הסוכן החכם', 'Nothing found – try another word or ask the Smart Agent')}</div>`}</div>
+    <div class="small muted section">${L('המדריך נבנה אוטומטית מרשימת היכולות של המערכת ומתעדכן בכל גרסה – כל יכולת חדשה מופיעה כאן, בסיור "מה חדש" ובידע של הסוכן החכם.', 'This guide is generated from the app’s feature list and updates with every version – each new feature appears here, in the “What’s new” tour and in the Smart Agent’s knowledge.')}</div></div>`;
+}
+function bindHelp() {
+  $$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+  $$('[data-hact]').forEach(b => b.onclick = () => {
+    const a = b.dataset.hact;
+    if (a === 'tour') runTour(fullTourSteps());
+    if (a === 'new') runTour(whatsNewSteps());
+    if (a === 'log') openChangelog();
+    if (a === 'ask') { const t = tourTrip(); if (!t) return toast(isEn() ? 'Create a trip first – the Smart Agent lives inside a trip' : 'צרו קודם טיול – הסוכן החכם נמצא בתוך טיול'); go(`#/trip/${t.id}/overview`); setTimeout(() => { aiOpen(); const i = $('#aiInput'); if (i) { i.value = isEn() ? 'How do I ' : 'איך עושים '; i.focus(); } }, 300); }
+  });
+  $$('[data-hshow]').forEach(b => b.onclick = () => { const f = FEATURES.find(x => x.id === b.dataset.hshow); if (f) runTour([f]); });
+  const si = $('#helpSearch'); if (si) si.oninput = () => { state.helpQ = si.value; const pos = si.selectionStart; render(); const n = $('#helpSearch'); n?.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { } };
+}
+
 // ---------- boot ----------
 function onTrips(trips) { state.trips = trips; state.ready = true; render(); }
 async function boot() {
+  initI18n();
   const topH = () => document.documentElement.style.setProperty('--top-h', ($('.topbar')?.offsetHeight || 61) + 'px'); topH(); window.addEventListener('resize', topH);
   const vp = $('#verPill'); if (vp) { vp.textContent = 'v' + APP_VERSION; vp.title = 'גרסה ' + APP_VERSION + ' · ' + APP_BUILD; vp.onclick = openChangelog; }
-  try { const seen = localStorage.getItem('tt-ver'); if (seen && seen !== APP_VERSION) setTimeout(() => toast(`✨ עודכן לגרסה ${APP_VERSION} – לחצו על מספר הגרסה לראות מה חדש`), 1200); localStorage.setItem('tt-ver', APP_VERSION); } catch (e) { }
+  $('#helpBtn').onclick = () => go('#/help');
+  if (isEn()) { const SHORT = { overview: 'Home', itinerary: 'Route', guide: 'Guide', search: 'Search', budget: 'Budget', bookings: 'Bookings', checklist: 'Lists' };
+    $$('#tabbar button[data-tab]').forEach(b => { const sp = b.querySelector('span'); b.textContent = ''; b.append(sp, SHORT[b.dataset.tab] || ''); });
+    const ta = $('#tabAi'); if (ta) { const sp = ta.querySelector('span'); ta.textContent = ''; ta.append(sp, 'Agent'); } }
+  const lt = $('#langToggle'); if (lt) { lt.textContent = isEn() ? 'עב' : 'EN'; lt.title = isEn() ? 'עברית' : 'English'; lt.onclick = () => setLang(isEn() ? 'he' : 'en'); }
   applyTheme(); $('#themeToggle').onclick = e => { e.stopPropagation(); openThemeMenu(); };
   readRoute();
   $('#homeBtn').onclick = () => go('#/');

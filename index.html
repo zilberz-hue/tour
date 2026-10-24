@@ -15,6 +15,8 @@
 (function () { var pref = 'auto'; try { pref = localStorage.getItem('tt-theme') || 'auto'; } catch (e) { }
   var dark = pref === 'dark' || (pref === 'auto' && !(window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches));
   document.documentElement.dataset.theme = dark ? 'dark' : 'light'; document.documentElement.dataset.themePref = pref; })();
+(function () { var l = null; try { l = localStorage.getItem('tt-lang'); } catch (e) { } if (l !== 'he' && l !== 'en') l = (navigator.language || 'he').toLowerCase().indexOf('he') === 0 ? 'he' : 'en';
+  document.documentElement.lang = l; document.documentElement.dir = l === 'en' ? 'ltr' : 'rtl'; document.documentElement.dataset.lang = l; })();
 </script>
 </head>
 <body>
@@ -26,6 +28,8 @@
   <button class="ver-pill" id="verPill" aria-label="גרסה ומה חדש"></button>
   <div class="topbar-actions">
     <span class="mode-pill" id="modePill"></span>
+    <button class="icon-btn lang-btn" id="langToggle" aria-label="שפה / Language" data-notr>EN</button>
+    <button class="icon-btn" id="helpBtn" aria-label="מרכז העזרה" title="מרכז העזרה">❓</button>
     <button class="icon-btn" id="themeToggle" aria-label="ערכת צבע" title="ערכת צבע">🌗</button>
     <button class="icon-btn" id="userBtn" aria-label="חשבון">👤</button>
   </div>
