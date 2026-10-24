@@ -1058,5 +1058,10 @@ export default {
 "🧳 זול+מזוודה": "🧳 Cheap+bag",
 "🧳 טרולי": "🧳 Carry-on",
 "🧳 כולל מזוודה": "🧳 Includes bag",
-"🧳 רק עם מזוודה": "🧳 With bag only"
+"🧳 רק עם מזוודה": "🧳 With bag only",
+"תוקן: כפתור שמירת המפתחות בהגדרות – החלון נסגר ומופיע אישור": "Fixed: the Save keys button in settings now closes the window and confirms",
+"🌊 טיול קרמל מופיע תמיד ברשימת הטיולים בחשבון של צחי, גם אם כבר יש טיולים אחרים": "🌊 The Carmel trip always appears in Tzachi's trip list, even when there are other trips",
+"כפתור לטעינת טיול קרמל ברשימת הטיולים כשהוא לא קיים": "A button in the trip list loads the Carmel trip when it is missing",
+"טיול לדוגמה: סן פרנסיסקו → קרמל": "Sample trip: San Francisco → Carmel",
+"טוענים בלחיצה את הטיול המלא – מסלול, הזמנות ותקציב": "Load the full trip in one tap – route, bookings and budget"
 };

@@ -14,9 +14,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '2.2.1';
-const APP_BUILD = '2026-10-24 19:50';
+const APP_VERSION = '2.2.2';
+const APP_BUILD = '2026-10-24 20:30';
 const CHANGELOG = [
+  ['2.2.2', '24/10/2026 20:30', ['תוקן: כפתור שמירת המפתחות בהגדרות – החלון נסגר ומופיע אישור', '🌊 טיול קרמל מופיע תמיד ברשימת הטיולים בחשבון של צחי, גם אם כבר יש טיולים אחרים', 'כפתור לטעינת טיול קרמל ברשימת הטיולים כשהוא לא קיים']],
   ['2.2.1', '24/10/2026 19:50', ['תיקון: טיול קרמל נטען לחשבון בענן גם אם כבר התחברת לפני גרסה 2.1.1']],
   ['2.2.0', '24/10/2026 19:40', ['🛰️ מעקב מחירים אוטומטי בסקירת הטיול: תוצאות הבדיקה המתוזמנת, התראות וכללי המעקב']],
   ['2.1.1', '24/10/2026 19:15', ['🌊 טיול קרמל נטען כפרויקט הראשון בחשבון של צחי בענן', 'כפתור טיול לדוגמה בלוח הבקרה כשאין עדיין טיולים']],
@@ -115,8 +116,10 @@ function blankTrip(p = {}) {
   };
 }
 
+const isCarmel = t => t.seed === 'carmel' || /קרמל|carmel/i.test(t.name || '');
 function seedCarmel() {
   const t = blankTrip({ name: 'סן פרנסיסקו → קרמל', destination: 'קליפורניה, ארה״ב', emoji: '🌊', start: '2026-11-18', end: '2026-11-23', travelers: 2, rateUSD: 3.1, airport: 'SFO', city: 'Carmel-by-the-Sea, CA', travelersList: [{ name: 'צחי', origin: 'TLV' }, { name: 'רחל', origin: 'DFW' }] });
+  t.seed = 'carmel';
   t.budget = { flights: 4330, lodging: 3700, car: 2015, fuel: 435, food: 2790, attractions: 400, insurance: 400, shopping: 0, misc: 1025 };
   const S = (time, title, place, notes = '') => ({ id: uid(), time, title, place, notes });
   t.days = {
@@ -187,7 +190,7 @@ const CloudStore = {
     const { collection, query, where, onSnapshot } = this.F; const col = collection(this.db, 'trips');
     const buckets = { own: [], inv: [] };
     const emit = () => { const m = new Map(); [...buckets.own, ...buckets.inv].forEach(t => m.set(t.id, t)); this.trips = [...m.values()]; this.onChange(this.trips); };
-    const u1 = onSnapshot(query(col, where('members', 'array-contains', user.uid)), s => { buckets.own = s.docs.map(d => d.data()); emit(); if (!this._migChecked) { this._migChecked = true; this._migrateLocal(user, s.empty); } }, e => toast('שגיאת סנכרון: ' + e.code));
+    const u1 = onSnapshot(query(col, where('members', 'array-contains', user.uid)), s => { buckets.own = s.docs.map(d => d.data()); emit(); if (!this._migChecked) { this._migChecked = true; this._migrateLocal(user); } }, e => toast('שגיאת סנכרון: ' + e.code));
     const u2 = user.email ? onSnapshot(query(col, where('inviteEmails', 'array-contains', user.email.toLowerCase())), s => {
       buckets.inv = s.docs.map(d => d.data());
       buckets.inv.filter(t => !t.members?.includes(user.uid)).forEach(t => { t.members = [...(t.members || []), user.uid]; this.saveTrip(t); });
@@ -196,20 +199,21 @@ const CloudStore = {
     this._unsub = [u1, u2];
   },
   // כניסה ראשונה לענן: מעלה את הטיולים שנשמרו בדפדפן (פעם אחת לכל משתמש)
-  async _migrateLocal(user, cloudEmpty) {
+  async _migrateLocal(user) {
     const flag = 'tt-migrated-' + user.uid; let local = [], migrated = false;
     try { migrated = !!localStorage.getItem(flag); local = JSON.parse(localStorage.getItem(LS_KEY))?.trips || []; } catch (e) { return; }
-    // החשבון של צחי: טיול קרמל הוא הפרויקט הראשון – נטען לענן אם החשבון ריק (גם אם כבר נכנסו לענן לפני 2.1.1)
-    if (cloudEmpty && (migrated || !local.length) && OWNER_EMAILS.includes((user.email || '').toLowerCase())) {
-      const sk = 'tt-seeded-' + user.uid; let done = false; try { done = !!localStorage.getItem(sk); } catch (e) { }
-      if (!done) { const t = seedCarmel(); addLog(t, 'הטיול נוצר – הפרויקט הראשון'); try { await this.saveTrip({ ...t, ownerId: user.uid, members: [user.uid] }); localStorage.setItem(sk, '1'); toast('🌊 טיול קרמל נטען לחשבון שלך'); } catch (e) { console.error(e); } }
+    const uploaded = [];
+    if (!migrated) {
+      const existing = new Set(this.trips.map(t => t.id));
+      for (const t of local) { if (existing.has(t.id)) continue; try { await this.saveTrip({ ...t, ownerId: user.uid, members: [user.uid], inviteEmails: t.inviteEmails || [] }); uploaded.push(t); } catch (e) { console.error(e); } }
+      try { localStorage.setItem(flag, '1'); } catch (e) { }
+      if (uploaded.length) toast(uploaded.length === 1 ? '☁️ הטיול מהמכשיר הועלה לענן' : `☁️ ${uploaded.length} טיולים מהמכשיר הועלו לענן`);
     }
-    if (migrated) return;
-    if (!local.length) { try { localStorage.setItem(flag, '1'); } catch (e) { } return; }
-    const existing = new Set(this.trips.map(t => t.id)); let n = 0;
-    for (const t of local) { if (existing.has(t.id)) continue; try { await this.saveTrip({ ...t, ownerId: user.uid, members: [user.uid], inviteEmails: t.inviteEmails || [] }); n++; } catch (e) { console.error(e); } }
-    try { localStorage.setItem(flag, '1'); } catch (e) { }
-    if (n) toast(n === 1 ? '☁️ הטיול מהמכשיר הועלה לענן' : `☁️ ${n} טיולים מהמכשיר הועלו לענן`);
+    // החשבון של צחי: טיול קרמל הוא הפרויקט הראשון – נטען לענן אם אין אותו בחשבון (גם כשיש כבר טיולים אחרים)
+    if (OWNER_EMAILS.includes((user.email || '').toLowerCase()) && ![...this.trips, ...uploaded].some(isCarmel)) {
+      const t = seedCarmel(); addLog(t, 'הטיול נוצר – הפרויקט הראשון');
+      try { await this.saveTrip({ ...t, ownerId: user.uid, members: [user.uid] }); toast('🌊 טיול קרמל נטען לחשבון שלך'); } catch (e) { console.error(e); }
+    }
   },
   async saveTrip(trip) {
     trip.updatedAt = Date.now();
@@ -250,7 +254,8 @@ async function mutateTrip(id, fn, label) {
 
 // ---------- toast ----------
 let toastTimer;
-function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2600); }
+function toast(msg) { const el = $('#toast'); const d = document.querySelector('dialog[open]'); if (el.parentNode !== (d || document.body)) (d || document.body).appendChild(el); el.textContent = msg; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2600); }
+document.querySelectorAll('dialog').forEach(d => d.addEventListener('close', () => { const el = $('#toast'); if (el.parentNode === d) document.body.appendChild(el); }));
 
 // ---------- modal form builder ----------
 // field: {key,label,type:text|number|date|time|select|textarea|file|checkbox,options:[[v,l]],half:true,placeholder}
@@ -451,6 +456,7 @@ function renderTripList() {
     <div class="row section wrap" style="gap:8px"><div class="seg">${seg.map(([id, l]) => `<button data-lf="${id}" class="${f === id ? 'active' : ''}">${l}${G[id].length ? ` <small>${G[id].length}</small>` : ''}</button>`).join('')}</div>
       <input id="tripSearch" class="spacer" type="search" placeholder="🔎 חיפוש טיול, יעד או נוסע…" value="${esc(state.listQ || '')}"></div>
     <div id="tripListBox">${tripListHtml()}</div>
+    ${live.length && !live.some(isCarmel) ? `<button class="card resume section" data-sample><span>🌊</span><div class="spacer" style="text-align:start"><b>טיול לדוגמה: סן פרנסיסקו → קרמל</b><div class="small muted">טוענים בלחיצה את הטיול המלא – מסלול, הזמנות ותקציב</div></div><span class="muted">+</span></button>` : ''}
     <button class="card resume section" data-go="#/profile"><span>👤</span><div class="spacer" style="text-align:start"><b>הפרופיל שלי</b><div class="small muted">שם, שדה בית, מלווים קבועים וסגנון טיול – ימולאו אוטומטית בכל טיול חדש</div></div><span class="muted">←</span></button>`;
 }
 function bindTripCards() {
@@ -470,7 +476,7 @@ function bindTripList() {
   bindTripCards();
   $$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
   $$('[data-lf]').forEach(b => b.onclick = () => { state.listFilter = b.dataset.lf; render(); });
-  $('[data-sample]')?.addEventListener('click', async () => { const t = seedCarmel(); addLog(t, 'נטען טיול לדוגמה'); await state.store.saveTrip(t); toast('🌊 טיול קרמל נוסף'); go(`#/trip/${t.id}/overview`); });
+  $$('[data-sample]').forEach(b => b.addEventListener('click', async () => { const t = seedCarmel(); addLog(t, 'נטען טיול לדוגמה'); await state.store.saveTrip(t); toast('🌊 טיול קרמל נוסף'); go(`#/trip/${t.id}/overview`); }));
   const si = $('#tripSearch'); if (si) si.oninput = () => { state.listQ = si.value; $('#tripListBox').innerHTML = tripListHtml(); bindTripCards(); };
 }
 
@@ -2328,7 +2334,7 @@ function openKeysMenu() {
   $('#modalDelete').hidden = true; $('#modalSave').textContent = 'שמירת מפתחות';
   $('#modalCancel').onclick = () => dlg.close();
   $('#modalForm').onsubmit = e => { e.preventDefault(); const o = {}; $$('[data-key]').forEach(i => { if (i.value.trim()) o[i.dataset.key] = i.value.trim(); });
-    try { localStorage.setItem('tt-keys', JSON.stringify(o)); } catch (er) { } toast(`🔑 נשמרו ${Object.keys(o).length} מפתחות במכשיר`); refreshKeyStatus(); };
+    try { localStorage.setItem('tt-keys', JSON.stringify(o)); } catch (er) { } dlg.close(); toast(`🔑 נשמרו ${Object.keys(o).length} מפתחות במכשיר`); };
   $$('[data-peek]').forEach(b => b.onclick = () => { const i = $(`[data-key="${b.dataset.peek}"]`); i.type = i.type === 'password' ? 'text' : 'password'; });
   $('#fbSave')?.addEventListener('click', () => { const c = parseFirebaseConfig($('#fbPaste').value); if (!c) return toast('לא זוהו apiKey ו-projectId – הדביקו את כל ה-firebaseConfig');
     try { localStorage.setItem('tt-firebase', JSON.stringify(c)); } catch (er) { } toast('☁️ מתחבר ל-Firebase…'); setTimeout(() => location.reload(), 600); });
