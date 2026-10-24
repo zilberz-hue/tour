@@ -1,5 +1,6 @@
 // מילון עברית → English (נוצר מתוך כל טקסטי הממשק). מוסיפים טקסט חדש בממשק → מוסיפים כאן שורה.
 export default {
+"תיקון: טיול קרמל נטען לחשבון בענן גם אם כבר התחברת לפני גרסה 2.1.1": "Fix: the Carmel trip now loads into your cloud account even if you signed in before version 2.1.1",
 "🛰️ מעקב מחירים אוטומטי בסקירת הטיול: תוצאות הבדיקה המתוזמנת, התראות וכללי המעקב": "🛰️ Automatic price monitoring in the trip overview: scheduled-check results, alerts and monitoring rules",
 "$ דולר": "$ Dollar",
 ". טיול": ". Trip",

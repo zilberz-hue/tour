@@ -14,9 +14,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '2.2.0';
-const APP_BUILD = '2026-10-24 19:40';
+const APP_VERSION = '2.2.1';
+const APP_BUILD = '2026-10-24 19:50';
 const CHANGELOG = [
+  ['2.2.1', '24/10/2026 19:50', ['תיקון: טיול קרמל נטען לחשבון בענן גם אם כבר התחברת לפני גרסה 2.1.1']],
   ['2.2.0', '24/10/2026 19:40', ['🛰️ מעקב מחירים אוטומטי בסקירת הטיול: תוצאות הבדיקה המתוזמנת, התראות וכללי המעקב']],
   ['2.1.1', '24/10/2026 19:15', ['🌊 טיול קרמל נטען כפרויקט הראשון בחשבון של צחי בענן', 'כפתור טיול לדוגמה בלוח הבקרה כשאין עדיין טיולים']],
   ['2.1.0', '24/10/2026 18:30', ['🌐 המערכת כולה בעברית ובאנגלית – כפתור שפה בסרגל העליון, ברירת מחדל לפי המכשיר, כיוון מימין/משמאל אוטומטי', '❓ מרכז עזרה וסיור מודרך אינטראקטיבי: הדגשה של כל יכולת במסך, הראה לי, חיפוש', '✨ מה חדש אוטומטי בכל גרסה – נבנה מרשימת היכולות, והסוכן החכם יודע לענות איך עושים']],
@@ -196,16 +197,15 @@ const CloudStore = {
   },
   // כניסה ראשונה לענן: מעלה את הטיולים שנשמרו בדפדפן (פעם אחת לכל משתמש)
   async _migrateLocal(user, cloudEmpty) {
-    const flag = 'tt-migrated-' + user.uid; let local = [];
-    try { if (localStorage.getItem(flag)) return; local = JSON.parse(localStorage.getItem(LS_KEY))?.trips || []; } catch (e) { return; }
-    if (!local.length) {
-      try { localStorage.setItem(flag, '1'); } catch (e) { }
-      // החשבון של צחי: טיול קרמל הוא הפרויקט הראשון – נטען לענן אם החשבון ריק
-      const sk = 'tt-seeded-' + user.uid;
-      if (cloudEmpty && OWNER_EMAILS.includes((user.email || '').toLowerCase())) { let done = false; try { done = !!localStorage.getItem(sk); } catch (e) { }
-        if (!done) { const t = seedCarmel(); addLog(t, 'הטיול נוצר – הפרויקט הראשון'); try { await this.saveTrip({ ...t, ownerId: user.uid, members: [user.uid] }); localStorage.setItem(sk, '1'); toast('🌊 טיול קרמל נטען לחשבון שלך'); } catch (e) { console.error(e); } } }
-      return;
+    const flag = 'tt-migrated-' + user.uid; let local = [], migrated = false;
+    try { migrated = !!localStorage.getItem(flag); local = JSON.parse(localStorage.getItem(LS_KEY))?.trips || []; } catch (e) { return; }
+    // החשבון של צחי: טיול קרמל הוא הפרויקט הראשון – נטען לענן אם החשבון ריק (גם אם כבר נכנסו לענן לפני 2.1.1)
+    if (cloudEmpty && (migrated || !local.length) && OWNER_EMAILS.includes((user.email || '').toLowerCase())) {
+      const sk = 'tt-seeded-' + user.uid; let done = false; try { done = !!localStorage.getItem(sk); } catch (e) { }
+      if (!done) { const t = seedCarmel(); addLog(t, 'הטיול נוצר – הפרויקט הראשון'); try { await this.saveTrip({ ...t, ownerId: user.uid, members: [user.uid] }); localStorage.setItem(sk, '1'); toast('🌊 טיול קרמל נטען לחשבון שלך'); } catch (e) { console.error(e); } }
     }
+    if (migrated) return;
+    if (!local.length) { try { localStorage.setItem(flag, '1'); } catch (e) { } return; }
     const existing = new Set(this.trips.map(t => t.id)); let n = 0;
     for (const t of local) { if (existing.has(t.id)) continue; try { await this.saveTrip({ ...t, ownerId: user.uid, members: [user.uid], inviteEmails: t.inviteEmails || [] }); n++; } catch (e) { console.error(e); } }
     try { localStorage.setItem(flag, '1'); } catch (e) { }
