@@ -12,9 +12,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '1.12.0';
-const APP_BUILD = '2026-10-24 15:55';
+const APP_VERSION = '1.13.0';
+const APP_BUILD = '2026-10-24 16:00';
 const CHANGELOG = [
+  ['1.13.0', '24/10/2026 16:00', ['☁️ מחובר ל-Firebase (פרויקט tizontour): התחברות, סנכרון בין מכשירים ושיתוף טיול', 'בכניסה הראשונה – הטיולים שבמכשיר עולים אוטומטית לענן']],
   ['1.12.0', '24/10/2026 15:55', ['🔑 מפתחות API מתוך ההגדרות (👤 ← מפתחות API) – נשמרים רק במכשיר, עם בדיקת מה מחובר', '☁️ חיבור Firebase בהדבקה מההגדרות, בלי לערוך קוד']],
   ['1.11.0', '24/10/2026 15:45', ['🇮🇱 ספקי טיסות ישראליים: SkyGini, SKYMAX של מקס, איסתא, גוליבר ודקה 90 – בלחיצה פרטי החיפוש מועתקים להדבקה']],
   ['1.10.0', '24/10/2026 15:35', ['👥 עלות לכל נוסע: כל אחד רואה מה הוא משלם – הוצאות אישיות (טיסה מנקודת היציאה שלו), חלקו במשותף והערכה, בשקלים ובדולרים', 'שיוך הערכות תקציב לנוסע (למשל ביטוח נסיעות רק לצחי)', 'בסקירה: סה״כ לכל נוסע']],
@@ -175,13 +176,23 @@ const CloudStore = {
     const { collection, query, where, onSnapshot } = this.F; const col = collection(this.db, 'trips');
     const buckets = { own: [], inv: [] };
     const emit = () => { const m = new Map(); [...buckets.own, ...buckets.inv].forEach(t => m.set(t.id, t)); this.trips = [...m.values()]; this.onChange(this.trips); };
-    const u1 = onSnapshot(query(col, where('members', 'array-contains', user.uid)), s => { buckets.own = s.docs.map(d => d.data()); emit(); }, e => toast('שגיאת סנכרון: ' + e.code));
+    const u1 = onSnapshot(query(col, where('members', 'array-contains', user.uid)), s => { buckets.own = s.docs.map(d => d.data()); emit(); if (!this._migChecked) { this._migChecked = true; this._migrateLocal(user, s.empty); } }, e => toast('שגיאת סנכרון: ' + e.code));
     const u2 = user.email ? onSnapshot(query(col, where('inviteEmails', 'array-contains', user.email.toLowerCase())), s => {
       buckets.inv = s.docs.map(d => d.data());
       buckets.inv.filter(t => !t.members?.includes(user.uid)).forEach(t => { t.members = [...(t.members || []), user.uid]; this.saveTrip(t); });
       emit();
     }) : () => { };
     this._unsub = [u1, u2];
+  },
+  // כניסה ראשונה לענן: מעלה את הטיולים שנשמרו בדפדפן (פעם אחת לכל משתמש)
+  async _migrateLocal(user, cloudEmpty) {
+    const flag = 'tt-migrated-' + user.uid; let local = [];
+    try { if (localStorage.getItem(flag)) return; local = JSON.parse(localStorage.getItem(LS_KEY))?.trips || []; } catch (e) { return; }
+    if (!local.length) { try { localStorage.setItem(flag, '1'); } catch (e) { } return; }
+    const existing = new Set(this.trips.map(t => t.id)); let n = 0;
+    for (const t of local) { if (existing.has(t.id)) continue; try { await this.saveTrip({ ...t, ownerId: user.uid, members: [user.uid], inviteEmails: t.inviteEmails || [] }); n++; } catch (e) { console.error(e); } }
+    try { localStorage.setItem(flag, '1'); } catch (e) { }
+    if (n) toast(n === 1 ? '☁️ הטיול מהמכשיר הועלה לענן' : `☁️ ${n} טיולים מהמכשיר הועלו לענן`);
   },
   async saveTrip(trip) {
     trip.updatedAt = Date.now();
