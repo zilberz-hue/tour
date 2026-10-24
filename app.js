@@ -14,9 +14,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '2.3.0';
-const APP_BUILD = '2026-10-24 22:35';
+const APP_VERSION = '2.3.1';
+const APP_BUILD = '2026-10-24 22:45';
 const CHANGELOG = [
+  ['2.3.1', '24/10/2026 22:45', ['🌊 טיול קרמל ושאר הטיולים מוצגים גם כשהענן עוד לא מוגדר (נשמרים במכשיר)', 'הודעה קבועה עם ההוראות כשחסר מסד נתונים או חוקי Firestore', 'תוקן: כפתור טיול לדוגמה יצא מהכרטיס']],
   ['2.3.0', '24/10/2026 22:35', ['🔠 טקסט גדול ומודגש יותר בכל המערכת, עם ניגודיות גבוהה', 'בחירת גודל טקסט: רגיל / גדול / גדול מאוד / ענק – בכפתור א+ למעלה ובתפריט החשבון']],
   ['2.2.5', '24/10/2026 22:25', ['💾 כפתורי השמירה לא נתקעים יותר: שומר מיד במכשיר וסוגר את החלון, והסנכרון לענן רץ ברקע', 'שמירה גם בלי חיבור – השינויים נשמרים במכשיר ועולים לענן כשהחיבור חוזר', 'הודעה ברורה אם הענן לא מוגדר (חוקי Firestore / מסד נתונים)']],
   ['2.2.4', '24/10/2026 20:50', ['📱 תפריט גלילה בנייד: התפריט התחתון נגלל בהחלקה, כל כפתור בגודל נוח, והלשונית הפעילה ממורכזת', 'תפריטי הלשוניות בתוך המסכים נגללים הצידה במקום להישבר']],
@@ -196,8 +197,11 @@ const CloudStore = {
   _listen(user) {
     const { collection, query, where, onSnapshot } = this.F; const col = collection(this.db, 'trips');
     const buckets = { own: [], inv: [] };
-    const emit = () => { const m = new Map(); [...buckets.own, ...buckets.inv].forEach(t => m.set(t.id, t)); this.trips = [...m.values()]; this.onChange(this.trips); };
-    const u1 = onSnapshot(query(col, where('members', 'array-contains', user.uid)), s => { buckets.own = s.docs.map(d => d.data()); emit(); if (!this._migChecked) { this._migChecked = true; this._migrateLocal(user); } }, e => toast('שגיאת סנכרון: ' + e.code));
+    const emit = () => { const m = new Map(); [...buckets.own, ...buckets.inv].forEach(t => m.set(t.id, t)); this.trips = [...m.values()]; this._cache(); this.onChange(this.trips); };
+    const u1 = onSnapshot(query(col, where('members', 'array-contains', user.uid)), s => { this.cloudError = null; buckets.own = s.docs.map(d => d.data()); emit(); if (!this._migChecked) { this._migChecked = true; this._migrateLocal(user); } },
+      e => { // הענן לא זמין/לא מוגדר: ממשיכים לעבוד מהעותק שבמכשיר, ומציגים הסבר קבוע
+        console.error(e); this.cloudError = e; try { this.trips = JSON.parse(localStorage.getItem(this._cacheKey())) || this.trips; } catch (er) { }
+        this.onChange([...this.trips]); if (!this._migChecked) { this._migChecked = true; this._migrateLocal(user); } });
     const u2 = user.email ? onSnapshot(query(col, where('inviteEmails', 'array-contains', user.email.toLowerCase())), s => {
       buckets.inv = s.docs.map(d => d.data());
       buckets.inv.filter(t => !t.members?.includes(user.uid)).forEach(t => { t.members = [...(t.members || []), user.uid]; this.saveTrip(t); });
@@ -206,6 +210,8 @@ const CloudStore = {
     this._unsub = [u1, u2];
   },
   // כניסה ראשונה לענן: מעלה את הטיולים שנשמרו בדפדפן (פעם אחת לכל משתמש)
+  _cacheKey() { return 'tt-cloud-cache-' + (this.user?.uid || 'x'); },
+  _cache() { try { localStorage.setItem(this._cacheKey(), JSON.stringify(this.trips)); } catch (e) { } },
   async _migrateLocal(user) {
     const flag = 'tt-migrated-' + user.uid; let local = [], migrated = false;
     try { migrated = !!localStorage.getItem(flag); local = JSON.parse(localStorage.getItem(LS_KEY))?.trips || []; } catch (e) { return; }
@@ -228,17 +234,17 @@ const CloudStore = {
     if (!trip.members?.includes(this.user.uid)) trip.members = [...(trip.members || []), this.user.uid];
     const data = clone(trip);
     // עדכון מיידי במסך (לא מחכים לשרת)
-    const i = this.trips.findIndex(t => t.id === trip.id); if (i >= 0) this.trips[i] = data; else this.trips.push(data); this.onChange([...this.trips]);
+    const i = this.trips.findIndex(t => t.id === trip.id); if (i >= 0) this.trips[i] = data; else this.trips.push(data); this._cache(); this.onChange([...this.trips]);
     const { doc, setDoc } = this.F; return this._write(setDoc(doc(this.db, 'trips', trip.id), data));
   },
   // כתיבה לענן ברקע: הכפתור לא נתקע אם השרת איטי/לא זמין; הודעה רק אם יש בעיה אמיתית
   _write(promise) {
     let settled = false;
-    promise.then(() => { settled = true; if (this._pendingToast) { this._pendingToast = false; toast('☁️ סונכרן לענן'); } }).catch(e => { settled = true; console.error(e); setTimeout(() => toast(cloudErr(e)), 1200); });
-    setTimeout(() => { if (!settled && !this._pendingToast) { this._pendingToast = true; toast('💾 נשמר במכשיר – יסונכרן לענן כשהחיבור יחזור'); } }, 3000);
+    promise.then(() => { settled = true; if (this._pendingToast) { this._pendingToast = false; toast('☁️ סונכרן לענן'); } }).catch(e => { settled = true; console.error(e); if (!this.cloudError) { this.cloudError = e; render(); } setTimeout(() => toast(cloudErr(e)), 1200); });
+    setTimeout(() => { if (!settled && !this._pendingToast && !this.cloudError) { this._pendingToast = true; toast('💾 נשמר במכשיר – יסונכרן לענן כשהחיבור יחזור'); } }, 3000);
     return Promise.resolve(); // לא מחכים לשרת – הכפתור משתחרר מיד
   },
-  async deleteTrip(id) { this.trips = this.trips.filter(t => t.id !== id); this.onChange([...this.trips]); const { doc, deleteDoc } = this.F; return this._write(deleteDoc(doc(this.db, 'trips', id))); },
+  async deleteTrip(id) { this.trips = this.trips.filter(t => t.id !== id); this._cache(); this.onChange([...this.trips]); const { doc, deleteDoc } = this.F; return this._write(deleteDoc(doc(this.db, 'trips', id))); },
   async getProfile() { const { doc, getDoc } = this.F; const s = await getDoc(doc(this.db, 'users', this.user.uid)); return s.exists() ? s.data() : null; },
   async saveProfile(p) { const { doc, setDoc } = this.F; return this._write(setDoc(doc(this.db, 'users', this.user.uid), clone(p))); },
   async uploadFile(tripId, file) {
@@ -449,6 +455,13 @@ function tripListHtml() {
   const empty = { upcoming: ['🧳', 'אין טיולים קרובים. זה הזמן לתכנן את הבא!'], past: ['📸', 'עוד אין טיולים שהסתיימו – הם יופיעו כאן כהיסטוריה.'], archived: ['🗄️', 'הארכיון ריק.'], trash: ['🗑️', 'סל המחזור ריק.'] }[f];
   return list.length ? list.map(t => tripCard(t, f)).join('') : `<div class="card empty"><span class="big">${empty[0]}</span>${q ? 'לא נמצאו טיולים מתאימים לחיפוש.' : empty[1]}</div>`;
 }
+
+function cloudBanner() {
+  const e = state.store?.mode === 'cloud' ? state.store.cloudError : null; if (!e) return '';
+  return `<div class="card cloud-warn section"><b>${cloudErr(e)}</b>
+    <div class="small" style="margin-top:6px">ההתחברות עובדת, אבל הענן עוד לא מוכן – עד שיוגדר, הטיולים נשמרים במכשיר הזה בלבד.</div>
+    <ol class="small" style="margin:6px 0 0;padding-inline-start:20px"><li>Firebase Console ← Firestore Database ← Create database</li><li>לשונית Rules ← להדביק את firestore.rules מהריפו ← Publish</li><li>לרענן את האתר</li></ol></div>`;
+}
 function renderTripList() {
   const G = tripGroups(); const today = isoDate(new Date()); const f = state.listFilter || 'upcoming';
   const live = state.trips.filter(t => !t.deletedAt); const done = live.filter(t => t.start <= today);
@@ -462,7 +475,7 @@ function renderTripList() {
     : nextT ? `<div class="card hero dash-hero" data-open="${nextT.id}" role="button" tabindex="0"><div class="small muted">הטיול הבא שלך</div><div class="row" style="margin-top:6px"><span style="font-size:calc(34px * var(--fs))">${esc(nextT.emoji)}</span><div class="spacer"><h2 style="margin:0">${esc(nextT.name)}</h2><div class="small muted">${fmtRange(nextT.start, nextT.end)} · ${esc(nextT.destination || '')}</div></div><div style="text-align:center"><div class="countdown">${daysBetween(today, nextT.start)}</div><div class="small muted">ימים</div></div></div></div>`
     : `<div class="card hero dash-hero"><h2 style="margin:0">לאן טסים הפעם? ✈️</h2><div class="small muted" style="margin:6px 0 12px">בונים טיול חדש בכמה צעדים – והסוכן החכם יכין טיוטת מסלול.</div><div class="row wrap" style="gap:8px"><button class="btn green" data-go="#/new">+ טיול חדש</button><button class="btn" data-sample>🌊 טיול לדוגמה: סן פרנסיסקו → קרמל</button></div></div>`;
   const seg = [['upcoming', 'קרובים'], ['past', 'היסטוריה'], ['archived', 'ארכיון'], ['trash', 'סל מחזור']];
-  return `<div class="section-head"><div><h1 style="margin:0">${name ? `שלום ${esc(name)} 👋` : 'הטיולים שלי'}</h1><div class="small muted">${live.length ? (live.length === 1 ? 'טיול אחד בחשבון' : `${live.length} טיולים בחשבון`) : 'ברוכים הבאים ל-Tizon Tour'}</div></div><button class="btn primary" data-go="#/new">+ טיול חדש</button></div>
+  return `${cloudBanner()}<div class="section-head"><div><h1 style="margin:0">${name ? `שלום ${esc(name)} 👋` : 'הטיולים שלי'}</h1><div class="small muted">${live.length ? (live.length === 1 ? 'טיול אחד בחשבון' : `${live.length} טיולים בחשבון`) : 'ברוכים הבאים ל-Tizon Tour'}</div></div><button class="btn primary" data-go="#/new">+ טיול חדש</button></div>
     ${hero}
     <div class="grid grid-2 section dash-stats">
       <div class="card stat"><div class="lbl">טיולים</div><div class="val">${live.length}</div></div>
@@ -761,6 +774,7 @@ function renderOverview(t) {
     </div>
   </div>
 
+  ${cloudBanner()}
   ${renderMorning(t)}
   ${renderMonitor(t)}
   <div class="grid grid-2 section">
