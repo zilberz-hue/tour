@@ -14,7 +14,7 @@ export default async (req) => {
   let b; try { b = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
   const messages = Array.isArray(b.messages) ? b.messages.slice(-24) : [];
   if (!messages.length) return json({ error: 'no messages' }, 400);
-  const body = { model: process.env.AI_MODEL || 'claude-sonnet-5-5', max_tokens: 1500, system: String(b.system || '').slice(0, 60000), messages };
+  const body = { model: process.env.AI_MODEL || 'claude-sonnet-5-5', max_tokens: Math.min(4096, Math.max(256, +b.max_tokens || 1500)), system: String(b.system || '').slice(0, 60000), messages };
   if (Array.isArray(b.tools) && b.tools.length) body.tools = b.tools.slice(0, 8);
   const r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));

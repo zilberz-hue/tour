@@ -12,9 +12,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '1.13.1';
-const APP_BUILD = '2026-10-24 16:05';
+const APP_VERSION = '2.0.0';
+const APP_BUILD = '2026-10-24 16:40';
 const CHANGELOG = [
+  ['2.0.0', '24/10/2026 16:40', ['🏠 לוח בקרה אישי לכל לקוח: הטיול הבא עם ספירה לאחור, סטטיסטיקות (טיולים, ימים בדרכים, יעדים, תקציב), המשך מאיפה שעצרת', 'היסטוריית טיולים: קרובים / היסטוריה / ארכיון / סל מחזור, עם חיפוש', '🧭 אשף טיול חדש ב-4 צעדים: יעד ותאריכים, נוסעים ונקודות יציאה, סגנון ותקציב, מסלול', '✨ הסוכן החכם בונה טיוטת מסלול יומי מלאה – או העתקת מסלול מטיול קודם', '👤 פרופיל אישי: שם, שדה בית, מלווים קבועים וסגנון – נשמר בענן ומתמלא אוטומטית', '📜 היסטוריית שינויים בכל טיול (מי שינה מה ומתי)', '📄 שכפול טיול לתאריכים חדשים, 🗄️ ארכיון, 🗑️ סל מחזור עם שחזור']],
   ['1.13.1', '24/10/2026 16:05', ['הסוכן החכם עבר לסוף התפריט ומעוצב כמו שאר הכפתורים (מודגש רק כשהחלון פתוח)']],
   ['1.13.0', '24/10/2026 16:00', ['☁️ מחובר ל-Firebase (פרויקט tizontour): התחברות, סנכרון בין מכשירים ושיתוף טיול', 'בכניסה הראשונה – הטיולים שבמכשיר עולים אוטומטית לענן']],
   ['1.12.0', '24/10/2026 15:55', ['🔑 מפתחות API מתוך ההגדרות (👤 ← מפתחות API) – נשמרים רק במכשיר, עם בדיקת מה מחובר', '☁️ חיבור Firebase בהדבקה מההגדרות, בלי לערוך קוד']],
@@ -202,6 +203,8 @@ const CloudStore = {
     const { doc, setDoc } = this.F; await setDoc(doc(this.db, 'trips', trip.id), clone(trip));
   },
   async deleteTrip(id) { const { doc, deleteDoc } = this.F; await deleteDoc(doc(this.db, 'trips', id)); },
+  async getProfile() { const { doc, getDoc } = this.F; const s = await getDoc(doc(this.db, 'users', this.user.uid)); return s.exists() ? s.data() : null; },
+  async saveProfile(p) { const { doc, setDoc } = this.F; await setDoc(doc(this.db, 'users', this.user.uid), clone(p)); },
   async uploadFile(tripId, file) {
     if (!this.storage) throw new Error('Firebase Storage לא מוגדר בפרויקט');
     const { ref, uploadBytes, getDownloadURL } = this.S;
@@ -218,8 +221,15 @@ const CloudStore = {
 // ---------- state ----------
 const state = { store: null, trips: [], tripId: null, tab: 'overview', ready: false, budgetView: 'cats' };
 const curTrip = () => state.trips.find(t => t.id === state.tripId);
-async function mutate(fn) {
+const whoAmI = () => Profile.data?.name || state.store?.user?.displayName || state.store?.user?.email || 'אני';
+const addLog = (t, what) => { if (what) t.log = [...(t.log || []), { t: Date.now(), who: whoAmI(), what: String(what).slice(0, 160) }].slice(-150); };
+async function mutate(fn, label) {
   const t = curTrip(); if (!t) return; const copy = clone(t); fn(copy);
+  addLog(copy, label || state.nextLog); state.nextLog = null;
+  try { await state.store.saveTrip(copy); } catch (e) { console.error(e); toast('השמירה נכשלה: ' + (e.code || e.message)); }
+}
+async function mutateTrip(id, fn, label) {
+  const t = state.trips.find(x => x.id === id); if (!t) return; const copy = clone(t); fn(copy); addLog(copy, label);
   try { await state.store.saveTrip(copy); } catch (e) { console.error(e); toast('השמירה נכשלה: ' + (e.code || e.message)); }
 }
 
@@ -263,7 +273,8 @@ function openForm({ title, fields, values = {}, onSave, onDelete, saveLabel = '�
     $('#modalSave').disabled = true;
     try {
       if (pending) { out.file = await state.store.uploadFile(state.tripId, pending); }
-      await onSave(out); close();
+      state.nextLog = title + (out.title ? ': ' + out.title : out.name ? ': ' + out.name : '');
+      await onSave(out); state.nextLog = null; close();
     } catch (e) { toast(e.message || 'שגיאה'); }
     finally { $('#modalSave').disabled = false; }
   };
@@ -276,6 +287,8 @@ function go(hash) { if (location.hash !== hash) location.hash = hash; else rende
 function readRoute() {
   const m = location.hash.match(/^#\/trip\/([^/]+)(?:\/(\w+))?/);
   state.tripId = m ? m[1] : null; state.tab = m?.[2] || 'overview';
+  state.page = /^#\/profile/.test(location.hash) ? 'profile' : /^#\/new/.test(location.hash) ? 'new' : null;
+  if (state.page !== 'new') state.wiz = null;
 }
 window.addEventListener('hashchange', () => { readRoute(); render(); window.scrollTo(0, 0); });
 
@@ -289,7 +302,10 @@ function render() {
   if (!state.ready) { app.innerHTML = `<div class="empty"><span class="big">🧭</span>טוען…</div>`; tabbar.hidden = true; return; }
   if (state.store.mode === 'cloud' && !state.store.user) { tabbar.hidden = true; app.innerHTML = renderAuth(); bindAuth(); return; }
   const trip = curTrip();
+  if (!trip && state.page === 'profile') { tabbar.hidden = true; app.innerHTML = renderProfile(); bindProfile(); return; }
+  if (!trip && state.page === 'new') { tabbar.hidden = true; app.innerHTML = renderWizard(); bindWizard(); return; }
   if (!trip) { tabbar.hidden = true; app.innerHTML = renderTripList(); bindTripList(); return; }
+  try { localStorage.setItem('tt-last', trip.id); } catch (e) { }
   tabbar.hidden = false;
   $$('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
   const views = { overview: renderOverview, itinerary: renderItinerary, guide: renderGuide, search: renderSearch, budget: renderBudget, bookings: renderBookings, checklist: renderChecklist };
@@ -340,30 +356,300 @@ function tripStatus(t) {
   if (today <= t.end) return { cls: 'ok', txt: 'בטיול עכשיו' };
   return { cls: '', txt: 'הסתיים' };
 }
-function renderTripList() {
-  const trips = [...state.trips].sort((a, b) => a.start.localeCompare(b.start));
-  const today = isoDate(new Date());
-  const up = trips.filter(t => t.end >= today), past = trips.filter(t => t.end < today).reverse();
-  const card = t => {
-    const st = tripStatus(t); const spent = totals(t).actual, plan = totals(t).planned;
-    return `<button class="card trip-card" data-open="${t.id}">
-      <div class="row"><span style="font-size:calc(30px * var(--fs))">${esc(t.emoji)}</span><div class="spacer">
-        <div class="title">${esc(t.name)} <span class="mini rename" role="button" tabindex="0" data-rename="${t.id}" aria-label="שינוי שם">✏️</span></div>
-        <div class="muted small">${esc(t.destination)} · ${fmtRange(t.start, t.end)} · ${t.travelers} נוסעים</div></div>
-        <span class="chip ${st.cls}">${st.txt}</span></div>
-      ${plan ? `<div class="bar gold" style="margin-top:12px"><i style="width:${Math.min(100, spent / plan * 100)}%"></i></div>
-      <div class="small muted" style="margin-top:4px">${fmtMoney(spent)} מתוך ${fmtMoney(plan)}</div>` : ''}
-    </button>`;
+// =====================================================================
+//  👤 פרופיל לקוח – נשמר בענן (users/{uid}) או במכשיר, ומשמש בכל טיול חדש
+// =====================================================================
+const Profile = {
+  data: null,
+  defaults() { const u = state.store?.user; return { name: (u?.displayName || '').split(' ')[0] || '', home: 'TLV', currency: 'ILS', rateUSD: 3.1, rateEUR: 3.4, level: 'mid', pace: 'balanced', interests: [], companions: [] }; },
+  async load() {
+    let d = null;
+    try { if (state.store?.mode === 'cloud' && state.store.user) d = await state.store.getProfile(); else d = JSON.parse(localStorage.getItem('tt-profile')); } catch (e) { }
+    this.data = { ...this.defaults(), ...(d || {}) }; return this.data;
+  },
+  async save(p) {
+    this.data = { ...(this.data || this.defaults()), ...p, updatedAt: Date.now() };
+    try { if (state.store?.mode === 'cloud' && state.store.user) await state.store.saveProfile(this.data); else localStorage.setItem('tt-profile', JSON.stringify(this.data)); }
+    catch (e) { toast('שמירת הפרופיל נכשלה: ' + (e.code || e.message)); }
+  }
+};
+const LEVELS = { eco: ['💰', 'חסכוני', 'מלונות פשוטים, אוכל רחוב, תחבורה ציבורית'], mid: ['⚖️', 'ממוצע', 'מלונות 3–4 כוכבים, מסעדות טובות, רכב'], lux: ['✨', 'מפנק', 'מלונות בוטיק, מסעדות שף, חוויות מיוחדות'] };
+const PACES = { relaxed: ['🌿', 'רגוע', '2–3 תחנות ביום'], balanced: ['🚶', 'מאוזן', '3–4 תחנות ביום'], intense: ['⚡', 'אינטנסיבי', '5+ תחנות ביום'] };
+const WIZ_INTERESTS = ['טבע ונופים', 'אוכל ומסעדות', 'היסטוריה ותרבות', 'חופים', 'קניות', 'חיי לילה', 'משפחה וילדים', 'יין', 'צילום', 'ספורט והרפתקאות', 'מוזיאונים', 'שווקים'];
+const DESTS = [['ניו יורק', 'New York, NY', 'JFK', '🗽'], ['לונדון', 'London, UK', 'LHR', '🎡'], ['פריז', 'Paris, France', 'CDG', '🗼'], ['רומא', 'Rome, Italy', 'FCO', '🏛️'], ['ברצלונה', 'Barcelona, Spain', 'BCN', '🌞'], ['אתונה', 'Athens, Greece', 'ATH', '🏺'], ['בנגקוק', 'Bangkok, Thailand', 'BKK', '🛕'], ['טוקיו', 'Tokyo, Japan', 'HND', '🗾'], ['קליפורניה', 'San Francisco, CA', 'SFO', '🌉'], ['פראג', 'Prague, Czechia', 'PRG', '🏰'], ['דובאי', 'Dubai, UAE', 'DXB', '🏙️'], ['לאס וגאס', 'Las Vegas, NV', 'LAS', '🎰']];
+
+// =====================================================================
+//  🏠 לוח הבקרה של הלקוח – כל הטיולים, היסטוריה, ארכיון וסל מחזור
+// =====================================================================
+const tripLen = t => Math.max(1, daysBetween(t.start, t.end) + 1);
+function tripGroups() {
+  const today = isoDate(new Date()); const live = state.trips.filter(t => !t.deletedAt);
+  return {
+    upcoming: live.filter(t => !t.archived && t.end >= today).sort((a, b) => a.start.localeCompare(b.start)),
+    past: live.filter(t => !t.archived && t.end < today).sort((a, b) => b.start.localeCompare(a.start)),
+    archived: live.filter(t => t.archived).sort((a, b) => b.start.localeCompare(a.start)),
+    trash: state.trips.filter(t => t.deletedAt).sort((a, b) => b.deletedAt - a.deletedAt)
   };
-  return `<div class="section-head"><h1>הטיולים שלי</h1><button class="btn primary" id="newTrip">+ טיול חדש</button></div>
-    ${up.length ? up.map(card).join('') : `<div class="card empty"><span class="big">🧳</span>אין טיולים קרובים. זה הזמן לתכנן!</div>`}
-    ${past.length ? `<div class="section"><h2 class="muted">טיולים קודמים</h2>${past.map(card).join('')}</div>` : ''}`;
+}
+function tripCard(t, f) {
+  const st = tripStatus(t); const tot = totals(t); const plan = tot.planned, spent = tot.actual;
+  const acts = f === 'trash'
+    ? `<button class="btn sm green" data-tact="restore" data-tid="${t.id}">↩️ שחזור</button><button class="btn sm danger" data-tact="purge" data-tid="${t.id}">מחיקה לצמיתות</button>`
+    : `<button class="btn sm" data-tact="dup" data-tid="${t.id}">📄 שכפול</button><button class="btn sm" data-tact="arch" data-tid="${t.id}">${t.archived ? '📤 החזרה' : '🗄️ ארכיון'}</button><button class="btn sm" data-tact="del" data-tid="${t.id}">🗑️</button>`;
+  return `<div class="card trip-card" ${f === 'trash' ? '' : `data-open="${t.id}" role="button" tabindex="0"`}>
+    <div class="row"><span style="font-size:calc(30px * var(--fs))">${esc(t.emoji)}</span><div class="spacer">
+      <div class="title">${esc(t.name)} ${f === 'trash' ? '' : `<span class="mini rename" role="button" tabindex="0" data-rename="${t.id}" aria-label="שינוי שם">✏️</span>`}</div>
+      <div class="muted small">${esc(t.destination || '')}${t.destination ? ' · ' : ''}${fmtRange(t.start, t.end)} · ${tripLen(t)} ימים · ${(t.travelersList || []).map(x => esc(x.name)).join(', ') || t.travelers + ' נוסעים'}</div></div>
+      <span class="chip ${f === 'trash' ? 'warn' : st.cls}">${f === 'trash' ? 'נמחק ' + new Date(t.deletedAt).toLocaleDateString('he-IL') : st.txt}</span></div>
+    ${plan && f !== 'trash' ? `<div class="bar gold" style="margin-top:12px"><i style="width:${Math.min(100, spent / plan * 100)}%"></i></div><div class="small muted" style="margin-top:4px">${fmtMoney(spent)} שולם מתוך ${fmtMoney(plan)}</div>` : ''}
+    <div class="tacts">${acts}</div></div>`;
+}
+function tripListHtml() {
+  const G = tripGroups(); const f = state.listFilter || 'upcoming'; const q = (state.listQ || '').trim().toLowerCase();
+  const list = G[f].filter(t => !q || [t.name, t.destination, t.city, ...(t.travelersList || []).map(x => x.name)].join(' ').toLowerCase().includes(q));
+  const empty = { upcoming: ['🧳', 'אין טיולים קרובים. זה הזמן לתכנן את הבא!'], past: ['📸', 'עוד אין טיולים שהסתיימו – הם יופיעו כאן כהיסטוריה.'], archived: ['🗄️', 'הארכיון ריק.'], trash: ['🗑️', 'סל המחזור ריק.'] }[f];
+  return list.length ? list.map(t => tripCard(t, f)).join('') : `<div class="card empty"><span class="big">${empty[0]}</span>${q ? 'לא נמצאו טיולים מתאימים לחיפוש.' : empty[1]}</div>`;
+}
+function renderTripList() {
+  const G = tripGroups(); const today = isoDate(new Date()); const f = state.listFilter || 'upcoming';
+  const live = state.trips.filter(t => !t.deletedAt); const done = live.filter(t => t.start <= today);
+  const days = done.reduce((a, t) => a + Math.max(1, daysBetween(t.start, t.end < today ? t.end : today) + 1), 0);
+  const dests = new Set(live.map(t => (t.destination || '').trim()).filter(Boolean)).size;
+  const budget = live.reduce((a, t) => a + totals(t).planned, 0);
+  const nowT = G.upcoming.find(t => t.start <= today), nextT = G.upcoming.find(t => t.start > today);
+  let last = null; try { last = state.trips.find(t => t.id === localStorage.getItem('tt-last') && !t.deletedAt); } catch (e) { }
+  const name = Profile.data?.name;
+  const hero = nowT ? `<div class="card hero dash-hero" data-open="${nowT.id}" role="button" tabindex="0"><div class="small muted">אתם בטיול עכשיו 🎉</div><div class="row" style="margin-top:6px"><span style="font-size:calc(34px * var(--fs))">${esc(nowT.emoji)}</span><div class="spacer"><h2 style="margin:0">${esc(nowT.name)}</h2><div class="small muted">יום ${daysBetween(nowT.start, today) + 1} מתוך ${tripLen(nowT)}</div></div><span class="btn green">פתח ←</span></div></div>`
+    : nextT ? `<div class="card hero dash-hero" data-open="${nextT.id}" role="button" tabindex="0"><div class="small muted">הטיול הבא שלך</div><div class="row" style="margin-top:6px"><span style="font-size:calc(34px * var(--fs))">${esc(nextT.emoji)}</span><div class="spacer"><h2 style="margin:0">${esc(nextT.name)}</h2><div class="small muted">${fmtRange(nextT.start, nextT.end)} · ${esc(nextT.destination || '')}</div></div><div style="text-align:center"><div class="countdown">${daysBetween(today, nextT.start)}</div><div class="small muted">ימים</div></div></div></div>`
+    : `<div class="card hero dash-hero"><h2 style="margin:0">לאן טסים הפעם? ✈️</h2><div class="small muted" style="margin:6px 0 12px">בונים טיול חדש בכמה צעדים – והסוכן החכם יכין טיוטת מסלול.</div><button class="btn green" data-go="#/new">+ טיול חדש</button></div>`;
+  const seg = [['upcoming', 'קרובים'], ['past', 'היסטוריה'], ['archived', 'ארכיון'], ['trash', 'סל מחזור']];
+  return `<div class="section-head"><div><h1 style="margin:0">${name ? `שלום ${esc(name)} 👋` : 'הטיולים שלי'}</h1><div class="small muted">${live.length ? (live.length === 1 ? 'טיול אחד בחשבון' : `${live.length} טיולים בחשבון`) : 'ברוכים הבאים ל-Tizon Tour'}</div></div><button class="btn primary" data-go="#/new">+ טיול חדש</button></div>
+    ${hero}
+    <div class="grid grid-2 section dash-stats">
+      <div class="card stat"><div class="lbl">טיולים</div><div class="val">${live.length}</div></div>
+      <div class="card stat"><div class="lbl">ימים בדרכים</div><div class="val">${days}</div></div>
+      <div class="card stat"><div class="lbl">יעדים</div><div class="val">${dests}</div></div>
+      <div class="card stat"><div class="lbl">תקציב כולל</div><div class="val">${fmtMoney(budget)}</div></div>
+    </div>
+    ${last && last.id !== (nowT || nextT)?.id ? `<button class="card resume" data-open="${last.id}"><span>↩️</span><div class="spacer" style="text-align:start"><div class="small muted">המשך מאיפה שעצרת</div><b>${esc(last.emoji)} ${esc(last.name)}</b></div><span class="muted">←</span></button>` : ''}
+    <div class="row section wrap" style="gap:8px"><div class="seg">${seg.map(([id, l]) => `<button data-lf="${id}" class="${f === id ? 'active' : ''}">${l}${G[id].length ? ` <small>${G[id].length}</small>` : ''}</button>`).join('')}</div>
+      <input id="tripSearch" class="spacer" type="search" placeholder="🔎 חיפוש טיול, יעד או נוסע…" value="${esc(state.listQ || '')}"></div>
+    <div id="tripListBox">${tripListHtml()}</div>
+    <button class="card resume section" data-go="#/profile"><span>👤</span><div class="spacer" style="text-align:start"><b>הפרופיל שלי</b><div class="small muted">שם, שדה בית, מלווים קבועים וסגנון טיול – ימולאו אוטומטית בכל טיול חדש</div></div><span class="muted">←</span></button>`;
+}
+function bindTripCards() {
+  $$('#app [data-open]').forEach(b => { const open = e => { if (e.target.closest('[data-rename],[data-tact]')) return; go(`#/trip/${b.dataset.open}/overview`); }; b.onclick = open; b.onkeydown = e => { if (e.key === 'Enter') open(e); }; });
+  $$('[data-rename]').forEach(b => { const fn = e => { e.stopPropagation(); e.preventDefault(); openRename(state.trips.find(x => x.id === b.dataset.rename)); }; b.onclick = fn; b.onkeydown = e => { if (e.key === 'Enter') fn(e); }; });
+  $$('[data-tact]').forEach(b => b.onclick = async e => {
+    e.stopPropagation(); const id = b.dataset.tid; const t = state.trips.find(x => x.id === id); if (!t) return;
+    const a = b.dataset.tact;
+    if (a === 'dup') return openDuplicate(t);
+    if (a === 'arch') { await mutateTrip(id, x => { x.archived = !x.archived; }, t.archived ? 'הוחזר מהארכיון' : 'הועבר לארכיון'); return toast(t.archived ? '📤 הוחזר לרשימה' : '🗄️ הועבר לארכיון'); }
+    if (a === 'del') { await mutateTrip(id, x => { x.deletedAt = Date.now(); }, 'הועבר לסל המחזור'); return toast('🗑️ הועבר לסל המחזור – אפשר לשחזר'); }
+    if (a === 'restore') { await mutateTrip(id, x => { delete x.deletedAt; }, 'שוחזר מסל המחזור'); return toast('↩️ הטיול שוחזר'); }
+    if (a === 'purge') { if (!confirm(`למחוק לצמיתות את "${t.name}"? אי אפשר לשחזר.`)) return; await state.store.deleteTrip(id); toast('הטיול נמחק לצמיתות'); }
+  });
 }
 function bindTripList() {
-  $$('[data-open]').forEach(b => b.onclick = e => { if (e.target.closest('[data-rename]')) return; go(`#/trip/${b.dataset.open}/overview`); });
-  $$('[data-rename]').forEach(b => { const fn = e => { e.stopPropagation(); e.preventDefault(); openRename(state.trips.find(x => x.id === b.dataset.rename)); }; b.onclick = fn; b.onkeydown = e => { if (e.key === 'Enter') fn(e); }; });
-  $('#newTrip').onclick = () => openTripForm();
+  bindTripCards();
+  $$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+  $$('[data-lf]').forEach(b => b.onclick = () => { state.listFilter = b.dataset.lf; render(); });
+  const si = $('#tripSearch'); if (si) si.oninput = () => { state.listQ = si.value; $('#tripListBox').innerHTML = tripListHtml(); bindTripCards(); };
 }
+
+// ---------- שכפול טיול (למשל אותו מסלול בשנה הבאה) ----------
+function openDuplicate(t) {
+  openForm({
+    title: 'שכפול טיול', saveLabel: 'שכפול',
+    fields: [{ key: 'name', label: 'שם הטיול החדש', required: true }, { key: 'start', label: 'תאריך יציאה חדש', type: 'date', required: true },
+      { key: 'keep', label: 'מה להעתיק', type: 'select', options: [['all', 'מסלול + הזמנות (כמתוכננות) + רשימות'], ['route', 'רק מסלול ורשימות']] }],
+    values: { name: t.name + ' (עותק)', start: t.start, keep: 'all' },
+    onSave: async v => {
+      const delta = daysBetween(t.start, v.start); const sh = d => d ? addDays(d, delta) : d;
+      const n = clone(t); Object.assign(n, { id: uid(), name: v.name, start: sh(t.start), end: sh(t.end), createdAt: Date.now(), updatedAt: Date.now(), ownerId: null, members: [], inviteEmails: [], archived: false, expenses: [], watch: [], log: [], favorites: t.favorites || [] });
+      delete n.deletedAt;
+      n.days = Object.fromEntries(Object.entries(t.days || {}).map(([d, x]) => [sh(d), { ...x, stops: (x.stops || []).map(s => ({ ...s, id: uid() })) }]));
+      n.bookings = v.keep === 'all' ? (t.bookings || []).map(b => ({ ...b, id: uid(), start: sh(b.start), end: sh(b.end), status: 'planned', conf: '', file: null })) : [];
+      ['packing', 'tasks'].forEach(l => { n.lists[l] = (t.lists?.[l] || []).map(x => ({ ...x, id: uid(), done: false })); });
+      addLog(n, `שוכפל מ"${t.name}"`);
+      await state.store.saveTrip(n); toast('📄 הטיול שוכפל'); go(`#/trip/${n.id}/overview`);
+    }
+  });
+}
+
+// =====================================================================
+//  🧭 אשף טיול חדש – 4 צעדים, ובסוף הסוכן החכם בונה טיוטת מסלול
+// =====================================================================
+function estimateBudget(d) {
+  const days = Math.max(1, daysBetween(d.start, d.end) + 1), nights = Math.max(0, days - 1), N = Math.max(1, d.travelers.length), rooms = Math.ceil(N / 2);
+  const L = { eco: { lodge: 110, food: 40, attr: 15, move: 30, misc: 10 }, mid: { lodge: 200, food: 75, attr: 35, move: 55, misc: 20 }, lux: { lodge: 420, food: 150, attr: 80, move: 100, misc: 40 } }[d.level] || {};
+  const r = Number(Profile.data?.rateUSD) || 3.1;
+  const b = { flights: 0, lodging: L.lodge * nights * rooms * r, car: L.move * days * r, fuel: 0, food: L.food * days * N * r, attractions: L.attr * days * N * r, insurance: 100 * N, shopping: 0, misc: L.misc * days * N * r };
+  Object.keys(b).forEach(k => b[k] = Math.round(b[k] / 10) * 10); return b;
+}
+function wizInit() {
+  const P = Profile.data || Profile.defaults(); const s = addDays(isoDate(new Date()), 30);
+  state.wiz = { step: 1, busy: false, d: { destination: '', city: '', airport: '', emoji: '🧭', start: s, end: addDays(s, 5), travelers: [{ name: P.name || 'אני', origin: P.home || 'TLV' }], level: P.level || 'mid', pace: P.pace || 'balanced', interests: [...(P.interests || [])], plan: 'ai', copyFrom: '' } };
+}
+function renderWizard() {
+  if (!state.wiz) wizInit(); const W = state.wiz, d = W.d, P = Profile.data || Profile.defaults();
+  const steps = ['לאן?', 'מי נוסע?', 'איזה טיול?', 'המסלול'];
+  const head = `<div class="section-head"><h1 style="margin:0">טיול חדש</h1><button class="btn ghost" data-go="#/">ביטול</button></div>
+    <div class="wiz-steps">${steps.map((x, i) => `<div class="wstep ${i + 1 === W.step ? 'on' : i + 1 < W.step ? 'done' : ''}"><span>${i + 1 < W.step ? '✓' : i + 1}</span>${x}</div>`).join('')}</div>`;
+  const days = Math.max(1, daysBetween(d.start, d.end) + 1);
+  let body = '';
+  if (W.step === 1) body = `<div class="card grid"><div class="field"><label>יעד</label><input id="wDest" value="${esc(d.destination)}" placeholder="למשל: רומא, איטליה" autocomplete="off"></div>
+      <div class="small muted">או בחרו יעד פופולרי:</div><div class="row wrap" style="gap:6px">${DESTS.map((x, i) => `<button type="button" class="chip ${d.destination === x[0] ? 'on' : ''}" data-wdest="${i}">${x[3]} ${x[0]}</button>`).join('')}</div>
+      <div class="field-row"><div class="field"><label>עיר בסיס (לחיפוש מלונות ומקומות)</label><input id="wCity" value="${esc(d.city)}" dir="ltr" placeholder="Rome, Italy"></div><div class="field"><label>שדה תעופה ביעד</label><input id="wAir" value="${esc(d.airport)}" dir="ltr" maxlength="3" style="text-transform:uppercase" placeholder="FCO"></div></div>
+      <div class="field-row"><div class="field"><label>יציאה</label><input type="date" id="wStart" value="${d.start}"></div><div class="field"><label>חזרה</label><input type="date" id="wEnd" value="${d.end}"></div></div>
+      <div class="small muted">${days} ימים · ${days - 1} לילות</div>
+      <div class="field" style="max-width:120px"><label>אייקון</label><input id="wEmoji" value="${esc(d.emoji)}"></div></div>`;
+  if (W.step === 2) { const avail = (P.companions || []).filter(c => !d.travelers.some(t => t.name === c.name));
+    body = `<div class="card grid"><div class="small muted">כל נוסע עם נקודת היציאה שלו – כך כל אחד יראה בדיוק מה הוא משלם (למשל צחי מ-TLV, רחל מ-DFW).</div>
+      ${d.travelers.map((t, i) => `<div class="row trow"><input data-tname="${i}" value="${esc(t.name)}" placeholder="שם"><input data-torig="${i}" value="${esc(t.origin)}" dir="ltr" maxlength="3" style="text-transform:uppercase;width:80px" placeholder="TLV"><button type="button" class="mini" data-tdel="${i}" aria-label="הסר" ${d.travelers.length < 2 ? 'disabled' : ''}>✕</button></div>`).join('')}
+      <button type="button" class="btn sm" id="wAddT">+ נוסע</button>
+      ${avail.length ? `<div class="small muted">מלווים קבועים מהפרופיל:</div><div class="row wrap" style="gap:6px">${avail.map((c, i) => `<button type="button" class="chip" data-tcomp="${esc(c.name)}">+ ${esc(c.name)} · ${esc(c.origin)}</button>`).join('')}</div>` : ''}</div>`; }
+  if (W.step === 3) { const est = estimateBudget(d); const sum = Object.values(est).reduce((a, b) => a + b, 0);
+    body = `<div class="card grid"><b>רמת תקציב</b><div class="wiz-opts">${Object.entries(LEVELS).map(([k, [i, n, desc]]) => `<button type="button" class="wopt ${d.level === k ? 'on' : ''}" data-wlevel="${k}"><span>${i}</span><b>${n}</b><small>${desc}</small></button>`).join('')}</div>
+      <b>קצב</b><div class="wiz-opts">${Object.entries(PACES).map(([k, [i, n, desc]]) => `<button type="button" class="wopt ${d.pace === k ? 'on' : ''}" data-wpace="${k}"><span>${i}</span><b>${n}</b><small>${desc}</small></button>`).join('')}</div>
+      <b>מה מעניין אתכם?</b><div class="row wrap" style="gap:6px">${WIZ_INTERESTS.map(x => `<button type="button" class="chip ${d.interests.includes(x) ? 'on' : ''}" data-wint="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+      <div class="wiz-est"><div class="small muted">הערכת תקציב ראשונית (בלי טיסות) – אפשר לעדכן אחר כך</div><b>${fmtMoney(sum)}</b> <span class="small muted">· ${fmtMoney(sum / d.travelers.length)} לנוסע · לינה ${fmtMoney(est.lodging)} · אוכל ${fmtMoney(est.food)}</span></div></div>`; }
+  if (W.step === 4) { const prev = state.trips.filter(t => !t.deletedAt);
+    body = `<div class="card grid"><b>איך לבנות את המסלול?</b><div class="wiz-opts col">
+        <button type="button" class="wopt ${d.plan === 'ai' ? 'on' : ''}" data-wplan="ai"><span>✨</span><b>הסוכן החכם יבנה טיוטה</b><small>מסלול יומי מלא לפי היעד, הקצב ותחומי העניין – אפשר לערוך הכל</small></button>
+        ${prev.length ? `<button type="button" class="wopt ${d.plan === 'copy' ? 'on' : ''}" data-wplan="copy"><span>📋</span><b>להעתיק מסלול מטיול קודם</b><small>${d.plan === 'copy' ? `<select id="wCopy">${prev.map(t => `<option value="${t.id}" ${d.copyFrom === t.id ? 'selected' : ''}>${esc(t.emoji)} ${esc(t.name)}</option>`).join('')}</select>` : 'בחרו טיול והמסלול יותאם לתאריכים החדשים'}</small></button>` : ''}
+        <button type="button" class="wopt ${d.plan === 'empty' ? 'on' : ''}" data-wplan="empty"><span>⬜</span><b>מסלול ריק</b><small>ימים ריקים – בונים לבד</small></button></div>
+      <div class="wiz-sum"><b>${esc(d.emoji)} ${esc(d.destination || 'טיול חדש')}</b><div class="small muted">${fmtRange(d.start, d.end)} · ${days} ימים · ${d.travelers.map(t => esc(t.name) + ' (' + esc(t.origin) + ')').join(', ')} · ${LEVELS[d.level][1]} · ${PACES[d.pace][1]}</div></div></div>`; }
+  const nav = `<div class="row wiz-nav">${W.step > 1 ? '<button type="button" class="btn" id="wBack">→ חזרה</button>' : ''}<span class="spacer"></span>${W.step < 4 ? '<button type="button" class="btn green big" id="wNext">המשך ←</button>' : `<button type="button" class="btn green big" id="wCreate" ${W.busy ? 'disabled' : ''}>${W.busy ? '<span class="spin"></span> בונה…' : '🚀 צור טיול'}</button>`}</div>`;
+  const busy = W.busy ? `<div class="wiz-busy card"><div class="wp-radar"><i></i><i></i><i></i><span>✨</span></div><div><b>הסוכן החכם בונה לכם מסלול…</b><div class="small muted">${esc(W.busyMsg || 'זה לוקח בדרך כלל 20–60 שניות')}</div></div></div>` : '';
+  return head + busy + body + nav;
+}
+function wizRead() {
+  const W = state.wiz, d = W.d, v = id => $('#' + id)?.value;
+  if (W.step === 1) { d.destination = (v('wDest') || '').trim(); d.city = (v('wCity') || '').trim(); d.airport = (v('wAir') || '').trim().toUpperCase(); d.start = v('wStart') || d.start; d.end = v('wEnd') || d.end; d.emoji = (v('wEmoji') || '🧭').trim() || '🧭'; }
+  if (W.step === 2) d.travelers = d.travelers.map((t, i) => ({ name: ($(`[data-tname="${i}"]`)?.value || '').trim(), origin: ($(`[data-torig="${i}"]`)?.value || 'TLV').trim().toUpperCase() }));
+  if (W.step === 4 && $('#wCopy')) d.copyFrom = $('#wCopy').value;
+}
+function bindWizard() {
+  const W = state.wiz, d = W.d;
+  $$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
+  $$('[data-wdest]').forEach(b => b.onclick = () => { wizRead(); const x = DESTS[+b.dataset.wdest]; Object.assign(d, { destination: x[0], city: x[1], airport: x[2], emoji: x[3] }); render(); });
+  $('#wAddT')?.addEventListener('click', () => { wizRead(); d.travelers.push({ name: '', origin: (Profile.data?.home || 'TLV') }); render(); setTimeout(() => $(`[data-tname="${d.travelers.length - 1}"]`)?.focus(), 30); });
+  $$('[data-tdel]').forEach(b => b.onclick = () => { wizRead(); d.travelers.splice(+b.dataset.tdel, 1); render(); });
+  $$('[data-tcomp]').forEach(b => b.onclick = () => { wizRead(); const c = (Profile.data?.companions || []).find(x => x.name === b.dataset.tcomp); if (c) d.travelers.push({ ...c }); render(); });
+  $$('[data-wlevel]').forEach(b => b.onclick = () => { d.level = b.dataset.wlevel; render(); });
+  $$('[data-wpace]').forEach(b => b.onclick = () => { d.pace = b.dataset.wpace; render(); });
+  $$('[data-wint]').forEach(b => b.onclick = () => { const x = b.dataset.wint; d.interests = d.interests.includes(x) ? d.interests.filter(y => y !== x) : [...d.interests, x]; render(); });
+  $$('[data-wplan]').forEach(b => b.onclick = e => { if (e.target.closest('select')) return; wizRead(); d.plan = b.dataset.wplan; if (d.plan === 'copy' && !d.copyFrom) d.copyFrom = state.trips.find(t => !t.deletedAt)?.id || ''; render(); });
+  $('#wCopy')?.addEventListener('change', e => { d.copyFrom = e.target.value; });
+  $('#wBack')?.addEventListener('click', () => { wizRead(); W.step--; render(); });
+  $('#wNext')?.addEventListener('click', () => {
+    wizRead();
+    if (W.step === 1) { if (!d.destination) return toast('כתבו יעד או בחרו מהרשימה'); if (d.end < d.start) return toast('תאריך החזרה לפני היציאה'); if (daysBetween(d.start, d.end) > 60) return toast('עד 60 ימים לטיול'); if (!d.city) d.city = d.destination; }
+    if (W.step === 2) { d.travelers = d.travelers.filter(t => t.name); if (!d.travelers.length) return toast('הוסיפו לפחות נוסע אחד'); }
+    W.step++; render(); window.scrollTo(0, 0);
+  });
+  $('#wCreate')?.addEventListener('click', () => { wizRead(); createTripFromWizard(); });
+}
+async function createTripFromWizard() {
+  const W = state.wiz, d = W.d; if (W.busy) return;
+  const P = Profile.data || Profile.defaults();
+  const t = blankTrip({ name: d.destination, destination: d.destination, emoji: d.emoji, start: d.start, end: d.end, travelers: d.travelers.length, rateUSD: P.rateUSD, rateEUR: P.rateEUR, airport: d.airport, city: d.city, travelersList: d.travelers });
+  t.budget = estimateBudget(d); t.prefs = { level: d.level, pace: d.pace, interests: d.interests };
+  t.lists.packing = PACK_TEMPLATE.map(x => ({ id: uid(), text: x, done: false }));
+  t.lists.tasks = TASK_TEMPLATE.map(x => ({ id: uid(), text: x, done: false }));
+  const dayKeys = tripDays(t);
+  dayKeys.forEach((k, i) => t.days[k] = { title: i === 0 ? 'נחיתה והתמקמות' : i === dayKeys.length - 1 ? 'יציאה' : `יום ${i + 1}`, notes: '', stops: [] });
+  let msg = '✅ הטיול נוצר';
+  if (d.plan === 'copy' && d.copyFrom) {
+    const src = state.trips.find(x => x.id === d.copyFrom); const sk = src ? tripDays(src) : [];
+    dayKeys.forEach((k, i) => { const sd = src?.days?.[sk[i]]; if (sd) t.days[k] = { title: sd.title || '', notes: sd.notes || '', stops: (sd.stops || []).map(s => ({ ...s, id: uid() })) }; });
+    msg = `📋 המסלול הועתק מ"${src?.name || ''}"`;
+  }
+  if (d.plan === 'ai') {
+    W.busy = true; render();
+    try { const days = await aiPlanTrip(t, d); let n = 0;
+      (days || []).forEach((x, i) => { const k = dayKeys.includes(x.date) ? x.date : dayKeys[i]; if (!k) return; t.days[k] = { title: String(x.title || t.days[k].title).slice(0, 80), notes: String(x.notes || '').slice(0, 200), stops: sortStops((x.stops || []).slice(0, 8).map(s => ({ id: uid(), time: String(s.time || '').slice(0, 5), title: String(s.title || '').slice(0, 80), place: String(s.place || '').slice(0, 120), notes: String(s.notes || '').slice(0, 200) })).filter(s => s.title)) }; n += t.days[k].stops.length; });
+      msg = n ? `✨ הסוכן החכם בנה מסלול עם ${n} תחנות` : '✅ הטיול נוצר (הסוכן לא החזיר מסלול – אפשר לבנות לבד)';
+    } catch (e) { msg = '✅ הטיול נוצר. הסוכן החכם לא זמין כרגע (' + (e.message || e.code || 'שגיאה') + ') – המסלול ריק לעריכה'; }
+    W.busy = false;
+  }
+  addLog(t, d.plan === 'ai' ? 'הטיול נוצר באשף + מסלול מהסוכן החכם' : d.plan === 'copy' ? 'הטיול נוצר באשף + מסלול מועתק' : 'הטיול נוצר באשף');
+  // מלווים חדשים נשמרים בפרופיל לפעם הבאה
+  const comps = [...(P.companions || [])]; d.travelers.forEach(x => { if (x.name && x.name !== P.name && !comps.some(c => c.name === x.name)) comps.push({ name: x.name, origin: x.origin }); });
+  if (comps.length !== (P.companions || []).length) Profile.save({ companions: comps });
+  await state.store.saveTrip(t); state.wiz = null; go(`#/trip/${t.id}/itinerary`); setTimeout(() => toast(msg), 300);
+}
+async function aiPlanTrip(t, d) {
+  const days = tripDays(t);
+  const prompt = `בנה מסלול טיול יומי בעברית לנוסעים ישראלים.
+יעד: ${d.destination} (עיר בסיס: ${d.city || d.destination}${d.airport ? ', שדה: ' + d.airport : ''}).
+תאריכים: ${days[0]} עד ${days[days.length - 1]} (${days.length} ימים). נוסעים: ${d.travelers.map(x => x.name + ' מ-' + x.origin).join(', ')}.
+רמת תקציב: ${LEVELS[d.level][1]}. קצב: ${PACES[d.pace][1]} (${PACES[d.pace][2]}). תחומי עניין: ${d.interests.join(', ') || 'כללי'}.
+היום הראשון: נחיתה והתמקמות (מעט תחנות). היום האחרון: יציאה. סדר גאוגרפי הגיוני, שעות ריאליות, ארוחות בתוך המסלול.
+החזר JSON בלבד, בלי טקסט נוסף, בפורמט:
+{"days":[{"date":"YYYY-MM-DD","title":"כותרת קצרה ליום","notes":"טיפ אחד קצר","stops":[{"time":"HH:MM","title":"שם התחנה בעברית","place":"Place name in English, City","notes":"משפט קצר"}]}]}
+צריך בדיוק ${days.length} ימים, בתאריכים: ${days.join(', ')}.`;
+  const mode = await aiEngine();
+  let out;
+  if (mode === 'claude') {
+    state.wiz && (state.wiz.busyMsg = 'בתוך Claude – בפעם הראשונה תתבקשו לאשר'); render();
+    out = await AI.sample.json(prompt, { modelTier: 'default' });
+  } else {
+    const r = await fetch('/.netlify/functions/advisor', { method: 'POST', headers: { 'Content-Type': 'application/json', ...keyHeaders() }, body: JSON.stringify({ system: 'You are a travel planner. Reply with valid JSON only.', messages: [{ role: 'user', content: prompt }], max_tokens: 4000 }) });
+    if (r.status === 404) throw new Error('הסוכן יעבוד באתר ב-Netlify או בתוך Claude');
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error?.message || j.error || 'שגיאה ' + r.status);
+    const txt = (j.content || []).filter(c => c.type === 'text').map(c => c.text).join(''); const a = txt.indexOf('{'), b = txt.lastIndexOf('}');
+    if (a < 0 || b < a) throw new Error('תשובה לא תקינה'); out = JSON.parse(txt.slice(a, b + 1));
+  }
+  return Array.isArray(out) ? out : out?.days || [];
+}
+
+// =====================================================================
+//  👤 עמוד הפרופיל
+// =====================================================================
+function renderProfile() {
+  const P = Profile.data || Profile.defaults(); const S = state.store;
+  return `<div class="section-head"><h1 style="margin:0">הפרופיל שלי</h1><button class="btn ghost" data-go="#/">← לטיולים</button></div>
+    <div class="card small">${S?.mode === 'cloud' && S.user ? `☁️ מחובר כ-<b>${esc(S.user.email || S.user.displayName || '')}</b> – הפרופיל והטיולים נשמרים בענן ומסונכרנים בכל המכשירים.` : '💾 מצב מקומי – הפרופיל נשמר בדפדפן הזה. התחברות לענן תשמור הכל בחשבון שלך.'}</div>
+    <form id="profForm" class="grid section">
+      <div class="card grid"><h3 style="margin:0">פרטים</h3>
+        <div class="field-row"><div class="field"><label>שם פרטי</label><input name="name" value="${esc(P.name)}" placeholder="צחי"></div><div class="field"><label>שדה תעופה בית</label><input name="home" value="${esc(P.home)}" dir="ltr" maxlength="3" style="text-transform:uppercase" placeholder="TLV"></div></div>
+        <div class="field-row"><div class="field"><label>שער דולר (₪)</label><input name="rateUSD" type="number" step="0.01" value="${esc(P.rateUSD)}"></div><div class="field"><label>שער אירו (₪)</label><input name="rateEUR" type="number" step="0.01" value="${esc(P.rateEUR)}"></div></div></div>
+      <div class="card grid"><h3 style="margin:0">מלווים קבועים</h3><div class="small muted">בני משפחה וחברים שטסים איתך – יופיעו כבחירה מהירה בכל טיול חדש, כל אחד עם נקודת היציאה שלו.</div>
+        <div id="compRows">${(P.companions || []).map((c, i) => `<div class="row trow"><input data-cname="${i}" value="${esc(c.name)}" placeholder="שם"><input data-corig="${i}" value="${esc(c.origin)}" dir="ltr" maxlength="3" style="text-transform:uppercase;width:80px"><button type="button" class="mini" data-cdel="${i}" aria-label="הסר">✕</button></div>`).join('') || '<div class="small muted">אין עדיין מלווים.</div>'}</div>
+        <button type="button" class="btn sm" id="compAdd">+ מלווה</button></div>
+      <div class="card grid"><h3 style="margin:0">סגנון טיול מועדף</h3>
+        <div class="wiz-opts">${Object.entries(LEVELS).map(([k, [i, n]]) => `<button type="button" class="wopt ${P.level === k ? 'on' : ''}" data-plevel="${k}"><span>${i}</span><b>${n}</b></button>`).join('')}</div>
+        <div class="wiz-opts">${Object.entries(PACES).map(([k, [i, n]]) => `<button type="button" class="wopt ${P.pace === k ? 'on' : ''}" data-ppace="${k}"><span>${i}</span><b>${n}</b></button>`).join('')}</div>
+        <div class="row wrap" style="gap:6px">${WIZ_INTERESTS.map(x => `<button type="button" class="chip ${(P.interests || []).includes(x) ? 'on' : ''}" data-pint="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>
+      <button class="btn green big" type="submit">שמירת פרופיל</button>
+    </form>`;
+}
+function bindProfile() {
+  const P = clone(Profile.data || Profile.defaults()); const draft = state.profDraft ||= P;
+  $$('[data-go]').forEach(b => b.onclick = () => { state.profDraft = null; go(b.dataset.go); });
+  const readComps = () => { draft.companions = (draft.companions || []).map((c, i) => ({ name: ($(`[data-cname="${i}"]`)?.value || '').trim(), origin: ($(`[data-corig="${i}"]`)?.value || 'TLV').trim().toUpperCase() })); };
+  const capture = () => { const fd = Object.fromEntries(new FormData($('#profForm'))); ['name', 'home', 'rateUSD', 'rateEUR'].forEach(k => { if (k in fd) draft[k] = fd[k]; }); readComps(); };
+  const rerender = () => { Profile.data = { ...Profile.data, ...draft }; render(); };
+  $('#compAdd').onclick = () => { capture(); draft.companions = [...(draft.companions || []), { name: '', origin: (draft.home || 'TLV').toUpperCase() }]; rerender(); setTimeout(() => $(`[data-cname="${draft.companions.length - 1}"]`)?.focus(), 30); };
+  $$('[data-cdel]').forEach(b => b.onclick = () => { capture(); draft.companions.splice(+b.dataset.cdel, 1); rerender(); });
+  $$('[data-plevel]').forEach(b => b.onclick = () => { capture(); draft.level = b.dataset.plevel; rerender(); });
+  $$('[data-ppace]').forEach(b => b.onclick = () => { capture(); draft.pace = b.dataset.ppace; rerender(); });
+  $$('[data-pint]').forEach(b => b.onclick = () => { capture(); const x = b.dataset.pint; draft.interests = (draft.interests || []).includes(x) ? draft.interests.filter(y => y !== x) : [...(draft.interests || []), x]; rerender(); });
+  $('#profForm').onsubmit = async e => { e.preventDefault(); const fd = Object.fromEntries(new FormData(e.target)); readComps();
+    await Profile.save({ ...draft, name: (fd.name || '').trim(), home: (fd.home || 'TLV').trim().toUpperCase(), rateUSD: Number(fd.rateUSD) || 3.1, rateEUR: Number(fd.rateEUR) || 3.4, companions: draft.companions.filter(c => c.name) });
+    state.profDraft = null; toast('✅ הפרופיל נשמר'); go('#/'); };
+}
+
+// ---------- 📜 היסטוריית שינויים בטיול ----------
+function renderTripLog(t) {
+  const L = [...(t.log || [])].reverse(); if (!L.length) return '';
+  const fmt = ts => new Date(ts).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return `<details class="card section tlog"><summary><b>📜 היסטוריית שינויים</b> <span class="small muted">(${L.length})</span></summary>
+    <ul class="list">${L.slice(0, 40).map(x => `<li class="li"><div class="main"><div class="t">${esc(x.what)}</div><div class="small muted">${esc(x.who || '')} · ${fmt(x.t)}</div></div></li>`).join('')}</ul></details>`;
+}
+
 function tripFields() {
   return [
     { key: 'name', label: 'שם הטיול', required: true, placeholder: 'למשל: חופשה בקליפורניה' },
@@ -393,9 +679,9 @@ function openTripForm(trip) {
       if (v.end < v.start) throw new Error('תאריך החזרה לפני היציאה');
       v.travelersList = (v.travelersTxt || '').split(',').map(x => x.split(':').map(y => y.trim())).filter(x => x[0]).map(([name, origin]) => ({ name, origin: (origin || 'TLV').toUpperCase() })); v.airport = (v.airport || '').toUpperCase();
       if (trip) { await mutate(t => { Object.assign(t, { travelersList: v.travelersList, airport: v.airport, city: v.city, name: v.name, destination: v.destination, start: v.start, end: v.end, travelers: v.travelers || 1, emoji: v.emoji || '🧭' }); t.rates = { USD: v.rateUSD || 1, EUR: v.rateEUR || 1 }; }); toast('נשמר'); }
-      else { const t = blankTrip(v); await state.store.saveTrip(t); go(`#/trip/${t.id}/overview`); }
+      else { const t = blankTrip(v); addLog(t, 'הטיול נוצר'); await state.store.saveTrip(t); go(`#/trip/${t.id}/overview`); }
     },
-    onDelete: trip ? async () => { await state.store.deleteTrip(trip.id); go('#/'); toast('הטיול נמחק'); } : null
+    onDelete: trip ? async () => { await mutateTrip(trip.id, x => { x.deletedAt = Date.now(); }, 'הטיול הועבר לסל המחזור'); go('#/'); toast('🗑️ הטיול הועבר לסל המחזור – אפשר לשחזר'); } : null
   });
 }
 
@@ -450,6 +736,7 @@ function renderOverview(t) {
     <div class="card">${nextBookings.length ? `<ul class="list">${nextBookings.map(bookingRow).join('')}</ul>` : '<div class="muted">אין הזמנות קרובות</div>'}</div></div>
 
   ${renderFavorites(t)}
+  ${renderTripLog(t)}
   ${openTasks.length ? `<div class="section"><div class="section-head"><h2>משימות פתוחות</h2><a href="#/trip/${t.id}/checklist" class="small">הכל ←</a></div>
     <div class="card">${openTasks.map(x => checkRow(x, 'tasks')).join('')}</div></div>` : ''}
   `;
@@ -1753,14 +2040,14 @@ function aiTools(t) {
     { name: 'add_stop', description: 'מוסיף תחנה למסלול ביום מסוים. מחזיר אישור.',
       inputSchema: { type: 'object', properties: { date: { type: 'string', description: 'YYYY-MM-DD בתוך תאריכי הטיול' }, time: { type: 'string', description: 'HH:MM' }, title: { type: 'string' }, place: { type: 'string', description: 'שם מקום/כתובת באנגלית למפות' }, notes: { type: 'string' } }, required: ['date', 'title'] },
       async execute(i) { const d = String(i.date); if (!tripDays(t).includes(d)) throw new Error('התאריך מחוץ לטיול'); const st = { id: uid(), time: String(i.time || ''), title: String(i.title), place: String(i.place || ''), notes: String(i.notes || '') };
-        await mutate(x => { x.days[d] = x.days[d] || { title: '', notes: '', stops: [] }; x.days[d].stops = sortStops([...(x.days[d].stops || []), st]); }); touched(`✅ נוסף למסלול: ${st.title} · ${fmtDate(d)} ${st.time}`); return 'נוסף'; } },
+        await mutate(x => { x.days[d] = x.days[d] || { title: '', notes: '', stops: [] }; x.days[d].stops = sortStops([...(x.days[d].stops || []), st]); }, `✨ הסוכן החכם הוסיף תחנה: ${st.title} (${fmtDate(d, false)})`); touched(`✅ נוסף למסלול: ${st.title} · ${fmtDate(d)} ${st.time}`); return 'נוסף'; } },
     { name: 'add_task', description: 'מוסיף פריט לרשימת משימות (tasks) או ציוד (packing).',
       inputSchema: { type: 'object', properties: { text: { type: 'string' }, list: { type: 'string', enum: ['tasks', 'packing'] } }, required: ['text'] },
-      async execute(i) { const list = i.list === 'packing' ? 'packing' : 'tasks'; await mutate(x => { x.lists[list].push({ id: uid(), text: String(i.text), done: false }); }); touched(`✅ נוסף ל${list === 'packing' ? 'ציוד' : 'משימות'}: ${i.text}`); return 'נוסף'; } },
+      async execute(i) { const list = i.list === 'packing' ? 'packing' : 'tasks'; await mutate(x => { x.lists[list].push({ id: uid(), text: String(i.text), done: false }); }, '✨ הסוכן החכם הוסיף לרשימה: ' + i.text); touched(`✅ נוסף ל${list === 'packing' ? 'ציוד' : 'משימות'}: ${i.text}`); return 'נוסף'; } },
     { name: 'add_expense', description: 'רושם הוצאה בתקציב. cat אחד מ: ' + CATS.map(c => c.id).join(','),
       inputSchema: { type: 'object', properties: { title: { type: 'string' }, amount: { type: 'number' }, currency: { type: 'string', enum: ['USD', 'ILS', 'EUR'] }, cat: { type: 'string' }, date: { type: 'string' }, payer: { type: 'string' } }, required: ['title', 'amount'] },
       async execute(i) { const e = { id: uid(), title: String(i.title), amount: Number(i.amount) || 0, currency: ['USD', 'ILS', 'EUR'].includes(i.currency) ? i.currency : 'USD', cat: CATS.some(c => c.id === i.cat) ? i.cat : 'misc', date: String(i.date || isoDate(new Date())), payer: String(i.payer || ''), split: 'all' };
-        await mutate(x => { x.expenses.push(e); }); touched(`✅ נרשמה הוצאה: ${e.title} ${fmtMoney(e.amount, e.currency)}`); return 'נרשם'; } }
+        await mutate(x => { x.expenses.push(e); }, `✨ הסוכן החכם רשם הוצאה: ${e.title}`); touched(`✅ נרשמה הוצאה: ${e.title} ${fmtMoney(e.amount, e.currency)}`); return 'נרשם'; } }
   ];
 }
 
@@ -1884,9 +2171,9 @@ function bindTrip(t) {
   $('#addBooking')?.addEventListener('click', () => editBooking(t, null));
   $$('[data-book]').forEach(b => b.onclick = () => openBookingView(t, t.bookings.find(x => x.id === b.dataset.book)));
   // checklist
-  $$('[data-check]').forEach(c => c.onchange = () => { const [l, id] = c.dataset.check.split('|'); mutate(x => { const it = x.lists[l].find(y => y.id === id); it.done = c.checked; }); });
+  $$('[data-check]').forEach(c => c.onchange = () => { const [l, id] = c.dataset.check.split('|'); const txt = curTrip()?.lists[l].find(y => y.id === id)?.text || ''; mutate(x => { const it = x.lists[l].find(y => y.id === id); it.done = c.checked; }, (c.checked ? '✓ סומן: ' : 'בוטל סימון: ') + txt); });
   $$('[data-delitem]').forEach(b => b.onclick = e => { e.preventDefault(); const [l, id] = b.dataset.delitem.split('|'); mutate(x => { x.lists[l] = x.lists[l].filter(y => y.id !== id); }); });
-  $$('[data-add]').forEach(f => f.onsubmit = e => { e.preventDefault(); const v = f.querySelector('input').value.trim(); if (!v) return; mutate(x => x.lists[f.dataset.add].push({ id: uid(), text: v, done: false })); });
+  $$('[data-add]').forEach(f => f.onsubmit = e => { e.preventDefault(); const v = f.querySelector('input').value.trim(); if (!v) return; mutate(x => x.lists[f.dataset.add].push({ id: uid(), text: v, done: false }), 'נוסף לרשימה: ' + v); });
   $$('[data-tpl]').forEach(b => b.onclick = () => { const l = b.dataset.tpl; const tpl = l === 'packing' ? PACK_TEMPLATE : TASK_TEMPLATE; mutate(x => { const have = new Set(x.lists[l].map(i => i.text)); tpl.filter(s => !have.has(s)).forEach(s => x.lists[l].push({ id: uid(), text: s, done: false })); }); });
   $$('[data-cleardone]').forEach(b => b.onclick = () => { const l = b.dataset.cleardone; mutate(x => { x.lists[l] = x.lists[l].filter(i => !i.done); }); });
 }
@@ -1901,6 +2188,7 @@ function openUserMenu() {
       <div class="add-inline"><input id="shareEmail" type="email" placeholder="email@example.com"><button type="button" class="btn sm primary" id="shareBtn">הזמן</button></div>
       <div class="small muted" style="margin-top:6px">${(t.inviteEmails || []).map(esc).join(', ') || 'אין עדיין שותפים'}</div></div>` : ''}
     <div class="grid">
+      <div class="row" style="gap:8px"><button type="button" class="btn spacer" id="homeMenuBtn">🏠 כל הטיולים</button><button type="button" class="btn spacer" id="profMenuBtn">👤 הפרופיל שלי</button></div>
       <button type="button" class="btn" id="keysBtn">🔑 מפתחות API וחיבור ענן</button>
       <button type="button" class="btn" id="verBtn">ℹ️ גרסה ${APP_VERSION} · ${APP_BUILD.split(' ')[0].split('-').reverse().join('/')} ${APP_BUILD.split(' ')[1]} · מה חדש</button>
       <div class="theme-seg">${THEMES.map(([id, ico, name]) => `<button type="button" class="btn" data-themepick="${id}">${ico} ${name.split(' ')[0]}</button>`).join('')}</div>
@@ -1913,6 +2201,8 @@ function openUserMenu() {
   dlg.showModal();
   $('#verBtn').onclick = () => { dlg.close(); openChangelog(); };
   $('#keysBtn').onclick = () => { dlg.close(); openKeysMenu(); };
+  $('#homeMenuBtn').onclick = () => { dlg.close(); go('#/'); };
+  $('#profMenuBtn').onclick = () => { dlg.close(); go('#/profile'); };
   $$('.theme-seg [data-themepick]').forEach(b => b.onclick = () => setTheme(b.dataset.themepick)); applyTheme();
   $('#exportBtn').onclick = () => { const blob = new Blob([JSON.stringify({ app: 'tizon-tour', v: 1, trips: state.trips }, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `tizon-tour-backup-${isoDate(new Date())}.json`; a.click(); };
   $('#importFile').onchange = async e => {
@@ -2017,9 +2307,10 @@ async function boot() {
   render();
   if (FB.apiKey) {
     state.store = CloudStore;
-    try { await CloudStore.init(onTrips, user => { state.ready = true; if (!user) state.trips = []; render(); }); }
-    catch (e) { console.error(e); toast('Firebase לא נטען – עובר למצב מקומי'); state.store = LocalStore; await LocalStore.init(onTrips); }
+    try { await CloudStore.init(onTrips, user => { state.ready = true; if (!user) state.trips = []; Profile.data = null; if (user) Profile.load().then(render); render(); }); }
+    catch (e) { console.error(e); toast('Firebase לא נטען – עובר למצב מקומי'); state.store = LocalStore; await LocalStore.init(onTrips); await Profile.load(); render(); }
   } else { state.store = LocalStore; await LocalStore.init(onTrips); }
+  if (state.store.mode === 'local') { await Profile.load(); render(); }
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
   const net = () => { document.body.classList.toggle('offline', !navigator.onLine); const p = $('#modePill'); if (p && !navigator.onLine) p.textContent = '📴 אופליין'; };
   window.addEventListener('online', () => { net(); render(); toast('🟢 חזרתם לרשת'); }); window.addEventListener('offline', () => { net(); toast('📴 אופליין – הכל שמור במכשיר'); }); net();
