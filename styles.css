@@ -508,3 +508,8 @@ button.chip{cursor:pointer;border:1px solid var(--card-b)}
 .tlog summary::after{content:' ▾';color:var(--muted)}
 .tlog[open] summary::after{content:' ▴'}
 .dash-stats{align-items:stretch}.dash-stats>.card{margin:0}
+
+/* v23: transparent logo, theme-aware */
+.logo-dark{display:none}
+:root[data-theme="dark"] .logo-light{display:none}
+:root[data-theme="dark"] .logo-dark{display:inline-block}
