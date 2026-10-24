@@ -14,9 +14,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '2.1.0';
-const APP_BUILD = '2026-10-24 18:30';
+const APP_VERSION = '2.1.1';
+const APP_BUILD = '2026-10-24 19:15';
 const CHANGELOG = [
+  ['2.1.1', '24/10/2026 19:15', ['🌊 טיול קרמל נטען כפרויקט הראשון בחשבון של צחי בענן', 'כפתור טיול לדוגמה בלוח הבקרה כשאין עדיין טיולים']],
   ['2.1.0', '24/10/2026 18:30', ['🌐 המערכת כולה בעברית ובאנגלית – כפתור שפה בסרגל העליון, ברירת מחדל לפי המכשיר, כיוון מימין/משמאל אוטומטי', '❓ מרכז עזרה וסיור מודרך אינטראקטיבי: הדגשה של כל יכולת במסך, הראה לי, חיפוש', '✨ מה חדש אוטומטי בכל גרסה – נבנה מרשימת היכולות, והסוכן החכם יודע לענות איך עושים']],
   ['2.0.1', '24/10/2026 17:25', ['לוגו שקוף (בלי רקע לבן), עם גרסה בהירה לטקסט במצב כהה', 'תוקנה בניית האתר ב-Netlify (סורק הסודות)']],
   ['2.0.0', '24/10/2026 16:40', ['🏠 לוח בקרה אישי לכל לקוח: הטיול הבא עם ספירה לאחור, סטטיסטיקות (טיולים, ימים בדרכים, יעדים, תקציב), המשך מאיפה שעצרת', 'היסטוריית טיולים: קרובים / היסטוריה / ארכיון / סל מחזור, עם חיפוש', '🧭 אשף טיול חדש ב-4 צעדים: יעד ותאריכים, נוסעים ונקודות יציאה, סגנון ותקציב, מסלול', '✨ הסוכן החכם בונה טיוטת מסלול יומי מלאה – או העתקת מסלול מטיול קודם', '👤 פרופיל אישי: שם, שדה בית, מלווים קבועים וסגנון – נשמר בענן ומתמלא אוטומטית', '📜 היסטוריית שינויים בכל טיול (מי שינה מה ומתי)', '📄 שכפול טיול לתאריכים חדשים, 🗄️ ארכיון, 🗑️ סל מחזור עם שחזור']],
@@ -164,6 +165,7 @@ const LocalStore = {
   }
 };
 
+const OWNER_EMAILS = ['zilberz@gmail.com'];
 const CloudStore = {
   mode: 'cloud', user: null, trips: [],
   async init(onChange, onAuth) {
@@ -195,7 +197,14 @@ const CloudStore = {
   async _migrateLocal(user, cloudEmpty) {
     const flag = 'tt-migrated-' + user.uid; let local = [];
     try { if (localStorage.getItem(flag)) return; local = JSON.parse(localStorage.getItem(LS_KEY))?.trips || []; } catch (e) { return; }
-    if (!local.length) { try { localStorage.setItem(flag, '1'); } catch (e) { } return; }
+    if (!local.length) {
+      try { localStorage.setItem(flag, '1'); } catch (e) { }
+      // החשבון של צחי: טיול קרמל הוא הפרויקט הראשון – נטען לענן אם החשבון ריק
+      const sk = 'tt-seeded-' + user.uid;
+      if (cloudEmpty && OWNER_EMAILS.includes((user.email || '').toLowerCase())) { let done = false; try { done = !!localStorage.getItem(sk); } catch (e) { }
+        if (!done) { const t = seedCarmel(); addLog(t, 'הטיול נוצר – הפרויקט הראשון'); try { await this.saveTrip({ ...t, ownerId: user.uid, members: [user.uid] }); localStorage.setItem(sk, '1'); toast('🌊 טיול קרמל נטען לחשבון שלך'); } catch (e) { console.error(e); } } }
+      return;
+    }
     const existing = new Set(this.trips.map(t => t.id)); let n = 0;
     for (const t of local) { if (existing.has(t.id)) continue; try { await this.saveTrip({ ...t, ownerId: user.uid, members: [user.uid], inviteEmails: t.inviteEmails || [] }); n++; } catch (e) { console.error(e); } }
     try { localStorage.setItem(flag, '1'); } catch (e) { }
@@ -427,7 +436,7 @@ function renderTripList() {
   const name = Profile.data?.name;
   const hero = nowT ? `<div class="card hero dash-hero" data-open="${nowT.id}" role="button" tabindex="0"><div class="small muted">אתם בטיול עכשיו 🎉</div><div class="row" style="margin-top:6px"><span style="font-size:calc(34px * var(--fs))">${esc(nowT.emoji)}</span><div class="spacer"><h2 style="margin:0">${esc(nowT.name)}</h2><div class="small muted">יום ${daysBetween(nowT.start, today) + 1} מתוך ${tripLen(nowT)}</div></div><span class="btn green">פתח ←</span></div></div>`
     : nextT ? `<div class="card hero dash-hero" data-open="${nextT.id}" role="button" tabindex="0"><div class="small muted">הטיול הבא שלך</div><div class="row" style="margin-top:6px"><span style="font-size:calc(34px * var(--fs))">${esc(nextT.emoji)}</span><div class="spacer"><h2 style="margin:0">${esc(nextT.name)}</h2><div class="small muted">${fmtRange(nextT.start, nextT.end)} · ${esc(nextT.destination || '')}</div></div><div style="text-align:center"><div class="countdown">${daysBetween(today, nextT.start)}</div><div class="small muted">ימים</div></div></div></div>`
-    : `<div class="card hero dash-hero"><h2 style="margin:0">לאן טסים הפעם? ✈️</h2><div class="small muted" style="margin:6px 0 12px">בונים טיול חדש בכמה צעדים – והסוכן החכם יכין טיוטת מסלול.</div><button class="btn green" data-go="#/new">+ טיול חדש</button></div>`;
+    : `<div class="card hero dash-hero"><h2 style="margin:0">לאן טסים הפעם? ✈️</h2><div class="small muted" style="margin:6px 0 12px">בונים טיול חדש בכמה צעדים – והסוכן החכם יכין טיוטת מסלול.</div><div class="row wrap" style="gap:8px"><button class="btn green" data-go="#/new">+ טיול חדש</button><button class="btn" data-sample>🌊 טיול לדוגמה: סן פרנסיסקו → קרמל</button></div></div>`;
   const seg = [['upcoming', 'קרובים'], ['past', 'היסטוריה'], ['archived', 'ארכיון'], ['trash', 'סל מחזור']];
   return `<div class="section-head"><div><h1 style="margin:0">${name ? `שלום ${esc(name)} 👋` : 'הטיולים שלי'}</h1><div class="small muted">${live.length ? (live.length === 1 ? 'טיול אחד בחשבון' : `${live.length} טיולים בחשבון`) : 'ברוכים הבאים ל-Tizon Tour'}</div></div><button class="btn primary" data-go="#/new">+ טיול חדש</button></div>
     ${hero}
@@ -460,6 +469,7 @@ function bindTripList() {
   bindTripCards();
   $$('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
   $$('[data-lf]').forEach(b => b.onclick = () => { state.listFilter = b.dataset.lf; render(); });
+  $('[data-sample]')?.addEventListener('click', async () => { const t = seedCarmel(); addLog(t, 'נטען טיול לדוגמה'); await state.store.saveTrip(t); toast('🌊 טיול קרמל נוסף'); go(`#/trip/${t.id}/overview`); });
   const si = $('#tripSearch'); if (si) si.oninput = () => { state.listQ = si.value; $('#tripListBox').innerHTML = tripListHtml(); bindTripCards(); };
 }
 
