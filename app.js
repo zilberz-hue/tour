@@ -301,7 +301,7 @@ function renderTripList() {
   const card = t => {
     const st = tripStatus(t); const spent = totals(t).actual, plan = totals(t).planned;
     return `<button class="card trip-card" data-open="${t.id}">
-      <div class="row"><span style="font-size:30px">${esc(t.emoji)}</span><div class="spacer">
+      <div class="row"><span style="font-size:calc(30px * var(--fs))">${esc(t.emoji)}</span><div class="spacer">
         <div class="title">${esc(t.name)} <span class="mini rename" role="button" tabindex="0" data-rename="${t.id}" aria-label="שינוי שם">✏️</span></div>
         <div class="muted small">${esc(t.destination)} · ${fmtRange(t.start, t.end)} · ${t.travelers} נוסעים</div></div>
         <span class="chip ${st.cls}">${st.txt}</span></div>
@@ -377,7 +377,7 @@ function renderOverview(t) {
   const countdown = today < t.start ? daysBetween(today, t.start) : null;
   return `
   <div class="card hero">
-    <div class="row"><span style="font-size:34px">${esc(t.emoji)}</span><div class="spacer">
+    <div class="row"><span style="font-size:calc(34px * var(--fs))">${esc(t.emoji)}</span><div class="spacer">
       <h1 style="margin:0" class="row" ><span>${esc(t.name)}</span><button class="mini rename" id="renameTrip" aria-label="שינוי שם">✏️</button></h1>
       <div class="dest">${esc(t.destination)}</div></div>
       <button class="btn sm" id="editTrip">⚙️ הגדרות</button></div>
@@ -526,7 +526,7 @@ function openBookingView(t, b) {
   $('#modalTitle').textContent = `${tp.ico} ${b.title}`;
   $('#modalBody').innerHTML = `
     <div class="row wrap"><span class="chip ${st.cls}">${st.name}</span>${b.provider ? `<span class="chip">${esc(b.provider)}</span>` : ''}</div>
-    ${b.conf ? `<div class="card"><div class="small muted">קוד אישור</div><div class="row"><b style="font-size:22px;letter-spacing:1px;direction:ltr">${esc(b.conf)}</b><span class="spacer"></span><button type="button" class="btn sm" id="copyConf">העתק</button></div></div>` : ''}
+    ${b.conf ? `<div class="card"><div class="small muted">קוד אישור</div><div class="row"><b style="font-size:calc(22px * var(--fs));letter-spacing:1px;direction:ltr">${esc(b.conf)}</b><span class="spacer"></span><button type="button" class="btn sm" id="copyConf">העתק</button></div></div>` : ''}
     <div class="grid grid-2">
       ${b.start ? `<div><div class="small muted">מתאריך</div>${fmtDate(b.start)}</div>` : ''}
       ${b.end ? `<div><div class="small muted">עד</div>${fmtDate(b.end)}</div>` : ''}
@@ -1740,6 +1740,7 @@ themeMQ?.addEventListener?.('change', () => { if (themePref() === 'auto') applyT
 // ---------- boot ----------
 function onTrips(trips) { state.trips = trips; state.ready = true; render(); }
 async function boot() {
+  const topH = () => document.documentElement.style.setProperty('--top-h', ($('.topbar')?.offsetHeight || 61) + 'px'); topH(); window.addEventListener('resize', topH);
   applyTheme(); $('#themeToggle').onclick = e => { e.stopPropagation(); openThemeMenu(); };
   readRoute();
   $('#homeBtn').onclick = () => go('#/');
