@@ -14,9 +14,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '2.2.3';
-const APP_BUILD = '2026-10-24 21:00';
+const APP_VERSION = '2.2.4';
+const APP_BUILD = '2026-10-24 20:50';
 const CHANGELOG = [
+  ['2.2.4', '24/10/2026 20:50', ['📱 תפריט גלילה בנייד: התפריט התחתון נגלל בהחלקה, כל כפתור בגודל נוח, והלשונית הפעילה ממורכזת', 'תפריטי הלשוניות בתוך המסכים נגללים הצידה במקום להישבר']],
   ['2.2.3', '24/10/2026 21:00', ['תוקן: כפתור שמירת הפרופיל לא עבד כששער הדולר או האירו הוזן עם יותר משתי ספרות אחרי הנקודה (למשל 3.725)']],
   ['2.2.2', '24/10/2026 20:30', ['תוקן: כפתור שמירת המפתחות בהגדרות – החלון נסגר ומופיע אישור', '🌊 טיול קרמל מופיע תמיד ברשימת הטיולים בחשבון של צחי, גם אם כבר יש טיולים אחרים', 'כפתור לטעינת טיול קרמל ברשימת הטיולים כשהוא לא קיים']],
   ['2.2.1', '24/10/2026 19:50', ['תיקון: טיול קרמל נטען לחשבון בענן גם אם כבר התחברת לפני גרסה 2.1.1']],
@@ -330,6 +331,7 @@ function render() {
   try { localStorage.setItem('tt-last', trip.id); } catch (e) { }
   tabbar.hidden = false;
   $$('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
+  requestAnimationFrame(() => { tabEdges(); const a = $('#tabbar button.active'); if (a && tabbar.scrollWidth > tabbar.clientWidth) a.scrollIntoView({ inline: 'center', block: 'nearest', behavior: state.tabScrolled ? 'smooth' : 'auto' }); state.tabScrolled = true; });
   const views = { overview: renderOverview, itinerary: renderItinerary, guide: renderGuide, search: renderSearch, budget: renderBudget, bookings: renderBookings, checklist: renderChecklist };
   app.innerHTML = (views[state.tab] || renderOverview)(trip);
   bindTrip(trip);
@@ -2414,9 +2416,16 @@ function bindHelp() {
   const si = $('#helpSearch'); if (si) si.oninput = () => { state.helpQ = si.value; const pos = si.selectionStart; render(); const n = $('#helpSearch'); n?.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { } };
 }
 
+// תפריט תחתון נגלל בנייד: סימון קצוות (דהייה רק בצד שיש עוד מה לגלול)
+function tabEdges() {
+  const t = $('#tabbar'); if (!t) return; const max = t.scrollWidth - t.clientWidth, x = Math.abs(t.scrollLeft);
+  const rtl = document.documentElement.dir === 'rtl';
+  t.classList.toggle(rtl ? 'at-end' : 'at-start', x < 4); t.classList.toggle(rtl ? 'at-start' : 'at-end', x > max - 4);
+}
 // ---------- boot ----------
 function onTrips(trips) { state.trips = trips; state.ready = true; render(); }
 async function boot() {
+  $('#tabbar')?.addEventListener('scroll', tabEdges, { passive: true }); window.addEventListener('resize', tabEdges);
   initI18n();
   const topH = () => document.documentElement.style.setProperty('--top-h', ($('.topbar')?.offsetHeight || 61) + 'px'); topH(); window.addEventListener('resize', topH);
   const vp = $('#verPill'); if (vp) { vp.textContent = 'v' + APP_VERSION; vp.title = 'גרסה ' + APP_VERSION + ' · ' + APP_BUILD; vp.onclick = openChangelog; }

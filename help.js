@@ -31,6 +31,9 @@ export const FEATURES = [
     he: ['אשף 4 הצעדים', 'עוברים צעד-צעד; בצעד האחרון בוחרים: הסוכן בונה מסלול, העתקה מטיול קודם, או מסלול ריק.'],
     en: ['The 4-step wizard', 'Go step by step; at the end choose: the agent builds a route, copy a previous trip, or start empty.'] },
   // ---- בתוך טיול ----
+  { id: 'swipe', v: '2.2.4', area: 'app', route: 'trip:overview', sel: '#tabbar', tour: 0,
+    he: ['תפריט גלילה בנייד', 'בטלפון מחליקים את התפריט התחתון ימינה ושמאלה כדי להגיע לכל הלשוניות; הלשונית הפעילה תמיד במרכז.'],
+    en: ['Swipe menu on mobile', 'On your phone, swipe the bottom menu left and right to reach every tab; the active tab is always centered.'] },
   { id: 'overview', v: '1.0.0', area: 'trip', route: 'trip:overview', sel: '#tabbar [data-tab="overview"]', tour: 1,
     he: ['סקירת הטיול', 'סיכום בוקר, מזג אוויר, תקציב, הזמנות קרובות ומשימות – הכל במבט אחד.'],
     en: ['Trip overview', 'Morning summary, weather, budget, upcoming bookings and tasks – at a glance.'] },
