@@ -451,3 +451,6 @@ body.ai-open .tabbar{z-index:45}
 .kchip.gold{border-color:var(--gold);color:var(--gold)} .kchip.est{border-style:dashed}
 .plist .li{padding:8px 0}
 .pfor{max-width:150px}
+
+/* v19: Israeli providers */
+.linkcard.il{border-color:rgba(56,120,220,.35)}

@@ -10,9 +10,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '1.10.0';
-const APP_BUILD = '2026-10-24 15:35';
+const APP_VERSION = '1.11.0';
+const APP_BUILD = '2026-10-24 15:45';
 const CHANGELOG = [
+  ['1.11.0', '24/10/2026 15:45', ['🇮🇱 ספקי טיסות ישראליים: SkyGini, SKYMAX של מקס, איסתא, גוליבר ודקה 90 – בלחיצה פרטי החיפוש מועתקים להדבקה']],
   ['1.10.0', '24/10/2026 15:35', ['👥 עלות לכל נוסע: כל אחד רואה מה הוא משלם – הוצאות אישיות (טיסה מנקודת היציאה שלו), חלקו במשותף והערכה, בשקלים ובדולרים', 'שיוך הערכות תקציב לנוסע (למשל ביטוח נסיעות רק לצחי)', 'בסקירה: סה״כ לכל נוסע']],
   ['1.9.1', '24/10/2026 15:25', ['הסוכן החכם עבר לתפריט התחתון – כפתור מודגש באמצע (במחשב: בתפריט הצד)']],
   ['1.9.0', '24/10/2026 15:20', ['בדיקת מחירים חיה: חיווי לכל מנוע בנפרד (Duffel, Google Flights, Aviasales, Google Hotels) והתוצאות נפתחות אוטומטית', 'בדיקה אוטומטית לפי מרווח לבחירה: 10 דק׳, רבע שעה, חצי שעה, שעה, 3 או 6 שעות, או כל מספר דקות', '"סוכן חכם" (במקום "יועץ AI") – לשונית קטנה בקצה המסך שלא מפריעה', 'מספר גרסה ו"מה חדש"']],
@@ -669,6 +670,20 @@ function defaultFlightForm(t) {
 }
 const ymd2 = d => d ? d.slice(2).replace(/-/g, '') : '';
 const mdy = d => { const [y, m, dd] = d.split('-'); return `${m}/${dd}/${y}`; };
+
+// ספקי טיסות ישראליים – אתרים בעברית עם שירות ישראלי. אין להם קישור עמוק ציבורי,
+// לכן הלחיצה פותחת את האתר ומעתיקה את פרטי החיפוש (מסלול, תאריכים, נוסעים) ללוח.
+function israeliFlightLinks(f) {
+  const F = f.from.toUpperCase(), T = f.to.toUpperCase();
+  const copy = `${F} → ${T} · ${fmtDate(f.depart, false)}${f.ret ? ' – ' + fmtDate(f.ret, false) : ' (כיוון אחד)'} · ${(f.adults || 1) == 1 ? 'נוסע אחד' : f.adults + ' נוסעים'}`;
+  return [
+    { name: 'SkyGini', ico: '🧞', note: 'סקיי ג׳יני – טיסות ומלונות, נציג אנושי עד 01:00', url: 'https://www.skygini.com/', il: true, copy },
+    { name: 'SKYMAX של מקס', ico: '💳', note: 'פורטל הטיסות של מקס – צבירה ומימוש נקודות', url: 'https://sky.max.co.il/', il: true, copy },
+    { name: 'איסתא', ico: '🔵', note: 'סוכנות הנסיעות הגדולה בישראל, גם סניפים', url: 'https://www.issta.co.il/', il: true, copy },
+    { name: 'גוליבר', ico: '🟠', note: 'טיסות, חבילות ודילים', url: 'https://www.gulliver.co.il/', il: true, copy },
+    { name: 'דקה 90', ico: '⏱️', note: 'דילים של הרגע האחרון וטיסות', url: 'https://www.daka90.co.il/', il: true, copy }
+  ];
+}
 function flightLinks(f) {
   const F = f.from.toUpperCase(), T = f.to.toUpperCase(), d = f.depart, r = f.ret, n = f.adults || 1;
   const cabinSky = { economy: 'economy', premium_economy: 'premiumeconomy', business: 'business', first: 'first' }[f.cabin];
@@ -782,7 +797,9 @@ function renderFlights(t) {
 
   ${links.length ? `<div class="section" id="results"><h2>השוואה – <span dir="ltr">${esc(f.from.toUpperCase())} → ${esc(f.to.toUpperCase())}</span></h2>
     <div class="small muted" style="margin-bottom:8px">כל מנוע נפתח עם הפרטים כבר ממולאים. בין כולם הם מכסים כמעט את כל החברות והסוכנויות.</div>
-    ${linkGrid(links)}</div>` : ''}
+    ${linkGrid(links)}
+    <h3 style="margin-top:16px">🇮🇱 ספקים ישראליים</h3><div class="small muted" style="margin-bottom:8px">בעברית, עם שירות ותשלום בישראל. אין להם קישור ישיר לחיפוש – בלחיצה פרטי החיפוש מועתקים, רק להדביק.</div>
+    ${linkGrid(israeliFlightLinks(f))}</div>` : ''}
 
   ${renderFlex('flights')}
   <div class="section" id="liveBox">
@@ -1124,6 +1141,7 @@ const TRANSLATE = u => `https://translate.google.com/translate?sl=auto&tl=iw&hl=
 function heLink(raw) {
   let u; try { u = new URL(raw); } catch (e) { return { url: raw, he: false }; }
   const h = u.hostname.replace(/^www\./, ''), set = (k, v) => u.searchParams.set(k, v);
+  if (h.endsWith('.co.il') || h === 'skygini.com') return { url: u.href, he: true };
   if (h === 'skyscanner.co.il') { set('locale', 'he-IL'); return { url: u.href, he: true }; }
   if (h === 'google.com') { set('hl', 'iw'); return { url: u.href, he: true }; }
   if (h === 'kayak.com') { u.hostname = 'he.kayak.com'; return { url: u.href, he: true }; }
@@ -1134,8 +1152,8 @@ function heLink(raw) {
   if (h === 'tripadvisor.com') { u.hostname = 'www.tripadvisor.co.il'; return { url: u.href, he: true }; }
   return { url: TRANSLATE(raw), he: false, orig: raw };
 }
-const linkGrid = links => `<div class="linkgrid">${links.map(l => { const x = heLink(l.url); return `<div class="card linkcard"><a class="lmain" href="${esc(x.url)}" target="_blank" rel="noopener"><span class="lico">${l.ico}</span><div><b>${l.name}</b><div class="small muted">${l.note}</div></div></a>
-  <div class="lfoot"><span class="chip ${x.he ? 'ok' : 'gold'}">${x.he ? 'עברית' : 'מתורגם'}</span>${x.orig ? `<a class="small muted" href="${esc(x.orig)}" target="_blank" rel="noopener">מקור ↗</a>` : ''}</div></div>`; }).join('')}</div>`;
+const linkGrid = links => `<div class="linkgrid">${links.map(l => { const x = heLink(l.url); return `<div class="card linkcard${l.il ? ' il' : ''}"><a class="lmain" href="${esc(x.url)}" target="_blank" rel="noopener"${l.copy ? ` data-copy="${esc(l.copy)}"` : ''}><span class="lico">${l.ico}</span><div><b>${l.name}</b><div class="small muted">${l.note}</div></div></a>
+  <div class="lfoot"><span class="chip ${x.he ? 'ok' : 'gold'}">${l.il ? '🇮🇱 ישראלי' : x.he ? 'עברית' : 'מתורגם'}</span>${x.orig ? `<a class="small muted" href="${esc(x.orig)}" target="_blank" rel="noopener">מקור ↗</a>` : ''}</div></div>`; }).join('')}</div>`;
 function renderSearch(t) {
   const k = hubState.kind;
   const seg = `<div class="kinds">${KINDS.map(x => `<button data-kind="${x.id}" class="${x.id === k ? 'active' : ''}"><span>${x.ico}</span>${x.name}</button>`).join('')}</div>`;
@@ -1702,7 +1720,7 @@ function tripContext(t) {
 const AI_RULES = `אתה "הסוכן החכם של Tizon Tour" – סוכן טיולים אישי, חכם וחם. ענה תמיד בעברית, קצר וברור (עד ~150 מילים אלא אם ביקשו יותר), עם רשימות קצרות כשמתאים.
 יש לך את כל נתוני הטיול למטה – השתמש בהם (תאריכים, שעות, מלונות, תקציב). המלץ באופן קונקרטי: שם מקום, שעה, מחיר משוער, למה.
 כשמבקשים מחירים עדכניים – השתמש בכלי search_live. כשהמשתמש מבקש להוסיף משהו – השתמש בכלים add_stop / add_task / add_expense ואמור מה הוספת. אל תוסיף בלי שביקשו.
-אם כלי נכשל – אמור זאת בכנות והצע קישור חיפוש (Google Maps / Skyscanner / Booking). מחירים שאינם מהכלים – ציין שהם משוערים. אל תמציא קודי הזמנה או מחירים מדויקים.`;
+אם כלי נכשל – אמור זאת בכנות והצע קישור חיפוש (Google Maps / Skyscanner / Booking). לטיסות מישראל אפשר להציע גם ספקים ישראליים: SkyGini (skygini.com), SKYMAX של מקס (sky.max.co.il), איסתא, גוליבר, דקה 90. מחירים שאינם מהכלים – ציין שהם משוערים. אל תמציא קודי הזמנה או מחירים מדויקים.`;
 
 function aiTools(t) {
   const sum = (j, kind) => (j.results || []).slice(0, 6).map(r => kind === 'flights'
@@ -1912,6 +1930,7 @@ function openThemeMenu() {
 }
 themeMQ?.addEventListener?.('change', () => { if (themePref() === 'auto') applyTheme('auto'); });
 
+document.addEventListener('click', e => { const a = e.target.closest?.('a[data-copy]'); if (!a) return; const txt = a.dataset.copy; try { navigator.clipboard?.writeText(txt).then(() => toast('📋 הועתק: ' + txt), () => toast(txt)); } catch (er) { toast(txt); } });
 // ---------- boot ----------
 function onTrips(trips) { state.trips = trips; state.ready = true; render(); }
 async function boot() {
