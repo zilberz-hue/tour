@@ -462,3 +462,15 @@ body.ai-open .tabbar{z-index:45}
 .keyrow:first-of-type{border-top:0}
 .keyrow input{flex:1;min-width:0;font-family:ui-monospace,monospace;font-size:calc(13px * var(--fs))}
 #fbPaste{width:100%;font-family:ui-monospace,monospace;font-size:calc(12px * var(--fs))}
+
+/* v21: smart agent = regular embedded tab at the end (no raised/gold look) */
+.tabbar .tab-ai{color:var(--muted);font-weight:inherit;background:none;margin:0;box-shadow:none}
+.tabbar .tab-ai span{width:auto;height:auto;margin:0;border-radius:0;display:inline;background:none;box-shadow:none;outline:none;font-size:calc(20px * var(--fs));filter:grayscale(.6);opacity:.8}
+@media(max-width:520px){.tabbar .tab-ai span{font-size:calc(19px * var(--fs))}}
+.tabbar .tab-ai.active{color:var(--gold)}
+.tabbar .tab-ai.active span{filter:none;opacity:1;outline:none}
+@media(min-width:1100px){
+  .tabbar .tab-ai,.tabbar .tab-ai:hover{background:none;color:var(--muted);filter:none;margin:0}
+  .tabbar .tab-ai:hover{background:var(--card)}
+  .tabbar .tab-ai.active{background:var(--card);color:var(--cream);box-shadow:inset -3px 0 0 var(--gold)}
+}

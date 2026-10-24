@@ -1,5 +1,5 @@
 // Tizon Tour – עבודה אופליין: האפליקציה, הנתונים (במכשיר), המפה ואריחי מפה שנצפו
-const CACHE = 'tizon-tour-1.13.0';
+const CACHE = 'tizon-tour-1.13.1';
 const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'firebase-config.js', 'logo.svg', 'logo.png', 'manifest.webmanifest'];
 const RUNTIME_OK = /cdnjs\.cloudflare\.com|tile\.openstreetmap\.org|fonts\.(googleapis|gstatic)\.com/;
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
