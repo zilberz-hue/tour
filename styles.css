@@ -4,7 +4,7 @@
   --cream:#F3EBDD; --muted:#A79F90; --danger:#E0614F; --warn:#E8B33C;
   --grad:linear-gradient(90deg,#C9AE7C,#A8702F);
   --r:16px; --gap:14px;
-  --tab-h:64px; --fs:1.08; --rail:0px;
+  --tab-h:72px; --fsb:1.22; --ufs:1; --fs:calc(var(--fsb) * var(--ufs)); --rail:0px;
 }
 :root[data-theme="light"]{
   --bg:#FAF7F1; --bg2:#F1EBDF; --card:#ffffff; --card-b:rgba(168,112,47,.18);
@@ -335,13 +335,13 @@ body.ai-open .ai-fab{display:none}
 
 /* v13: responsive – phone / tablet / desktop */
 @media(min-width:768px){
-  :root{--fs:1.12;--gap:16px}
+  :root{--fsb:1.28;--gap:16px}
   .app{max-width:960px;padding-inline:24px}
   .topbar{padding-inline:24px}
   .modal-card{max-width:600px}
 }
 @media(min-width:1100px){
-  :root{--fs:1.15;--rail:232px}
+  :root{--fsb:1.3;--rail:250px}
   .topbar{padding-inline:28px}
   /* סרגל ניווט צדדי במקום סרגל תחתון */
   .tabbar{top:calc(var(--top-h,61px));bottom:0;inset-inline-start:0;inset-inline-end:auto;width:var(--rail);height:auto;flex-direction:column;justify-content:flex-start;gap:4px;padding:18px 12px;border-top:0;border-inline-end:1px solid var(--card-b);background:transparent;backdrop-filter:none}
@@ -357,8 +357,8 @@ body.ai-open .ai-fab{display:none}
   .toast{bottom:32px}
   .grid-2{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
 }
-@media(min-width:1600px){:root{--fs:1.2}}
-@media(max-width:380px){:root{--fs:1.04}.app{padding-inline:12px}}
+@media(min-width:1600px){:root{--fsb:1.36}}
+@media(max-width:380px){:root{--fsb:1.16}.app{padding-inline:12px}}
 .hero h1.row span{overflow-wrap:break-word;word-break:normal}
 @media(max-width:520px){
   .hero h1{font-size:calc(24px * var(--fs))}
@@ -563,4 +563,46 @@ body.touring .ai-panel{display:none!important}
   .seg{display:flex;max-width:100%;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .seg::-webkit-scrollbar{display:none}
   .seg button{flex:0 0 auto;white-space:nowrap}
+}
+
+/* v2.3.0: big, bold, high-contrast text + user text-size choice */
+:root{--muted:#CFC7B8}
+:root[data-theme="light"]{--muted:#4A4338;--cream:#1E1A15}
+:root[data-tsize="m"]{--ufs:1}
+:root[data-tsize="l"]{--ufs:1.15}
+:root[data-tsize="xl"]{--ufs:1.3}
+:root[data-tsize="xxl"]{--ufs:1.45}
+html,body{font-weight:600;line-height:1.55;-webkit-font-smoothing:antialiased}
+b,strong,h1,h2,h3,.title,.t,.val,.amt,.btn,button{font-weight:800}
+.small{font-size:calc(14.5px * var(--fs));font-weight:600}
+.muted{font-weight:600}
+input,select,textarea{font-size:calc(16px * var(--fs));font-weight:600}
+.chip{font-weight:700}
+.tabbar button{font-weight:700}
+.tsize-seg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.tsize-seg .btn{padding-inline:4px}
+.tsize-seg .btn.active{outline:3px solid var(--gold)}
+.tsize-seg [data-tsize="m"]{font-size:14px}.tsize-seg [data-tsize="l"]{font-size:17px}.tsize-seg [data-tsize="xl"]{font-size:20px}.tsize-seg [data-tsize="xxl"]{font-size:23px}
+.tsize-btn{font-weight:900;font-size:calc(15px * var(--fs))}
+@media(max-width:400px){.topbar-actions{gap:4px}.topbar .icon-btn{width:38px;height:38px}.brand-text{font-size:calc(17px * var(--fs))}}
+/* topbar: fixed-size icons (not scaled), fewer items on phones */
+.topbar .icon-btn{width:42px;height:42px;font-size:19px;flex:none}
+.topbar .tsize-btn,.topbar .lang-btn{font-size:16px}
+.brand-text{font-size:20px}
+.topbar{gap:8px}
+.topbar-actions{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;min-width:0}
+@media(max-width:700px){
+  #modePill,#themeToggle,.ver-pill{display:none}
+  .brand-mark{width:30px;height:30px}
+  .brand-text{font-size:18px}
+}
+@media(max-width:370px){.brand-text{display:none}}
+/* hero on phones with big text: title gets the full width, words never split */
+.hero h1.row span{word-break:keep-all;overflow-wrap:normal;hyphens:none}
+@media(max-width:700px){
+  .hero > .row:first-child{flex-wrap:wrap;row-gap:10px}
+  .hero > .row:first-child > .spacer{min-width:calc(100% - 70px)}
+  .hero #editTrip{margin-inline-start:auto}
+  .hero h1{font-size:calc(22px * var(--fs))}
+  .hero::after{width:120px;height:120px}
 }

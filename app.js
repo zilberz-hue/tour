@@ -14,9 +14,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '2.2.5';
-const APP_BUILD = '2026-10-24 22:25';
+const APP_VERSION = '2.3.0';
+const APP_BUILD = '2026-10-24 22:35';
 const CHANGELOG = [
+  ['2.3.0', '24/10/2026 22:35', ['🔠 טקסט גדול ומודגש יותר בכל המערכת, עם ניגודיות גבוהה', 'בחירת גודל טקסט: רגיל / גדול / גדול מאוד / ענק – בכפתור א+ למעלה ובתפריט החשבון']],
   ['2.2.5', '24/10/2026 22:25', ['💾 כפתורי השמירה לא נתקעים יותר: שומר מיד במכשיר וסוגר את החלון, והסנכרון לענן רץ ברקע', 'שמירה גם בלי חיבור – השינויים נשמרים במכשיר ועולים לענן כשהחיבור חוזר', 'הודעה ברורה אם הענן לא מוגדר (חוקי Firestore / מסד נתונים)']],
   ['2.2.4', '24/10/2026 20:50', ['📱 תפריט גלילה בנייד: התפריט התחתון נגלל בהחלקה, כל כפתור בגודל נוח, והלשונית הפעילה ממורכזת', 'תפריטי הלשוניות בתוך המסכים נגללים הצידה במקום להישבר']],
   ['2.2.3', '24/10/2026 21:00', ['תוקן: כפתור שמירת הפרופיל לא עבד כששער הדולר או האירו הוזן עם יותר משתי ספרות אחרי הנקודה (למשל 3.725)']],
@@ -2262,6 +2263,7 @@ function openUserMenu() {
       <button type="button" class="btn" id="helpMenuBtn">❓ מרכז העזרה וסיור מודרך</button>
       <button type="button" class="btn" id="keysBtn">🔑 מפתחות API וחיבור ענן</button>
       <button type="button" class="btn" id="verBtn">ℹ️ גרסה ${APP_VERSION} · ${APP_BUILD.split(' ')[0].split('-').reverse().join('/')} ${APP_BUILD.split(' ')[1]} · מה חדש</button>
+      <div><div class="small muted" style="margin-bottom:4px">🔠 גודל טקסט</div><div class="tsize-seg">${[['m', 'רגיל'], ['l', 'גדול'], ['xl', 'גדול מאוד'], ['xxl', 'ענק']].map(([k, n]) => `<button type="button" class="btn ${(document.documentElement.dataset.tsize || 'l') === k ? 'active' : ''}" data-tsize="${k}">${n}</button>`).join('')}</div></div>
       <div class="theme-seg lang-seg" data-notr><button type="button" class="btn ${!isEn() ? 'active' : ''}" data-langpick="he">🇮🇱 עברית</button><button type="button" class="btn ${isEn() ? 'active' : ''}" data-langpick="en">🇺🇸 English</button></div>
       <div class="theme-seg">${THEMES.map(([id, ico, name]) => `<button type="button" class="btn" data-themepick="${id}">${ico} ${name.split(' ')[0]}</button>`).join('')}</div>
       <button type="button" class="btn" id="exportBtn">⬇️ ייצוא גיבוי (JSON)</button>
@@ -2273,6 +2275,7 @@ function openUserMenu() {
   dlg.showModal();
   $('#verBtn').onclick = () => { dlg.close(); openChangelog(); };
   $('#keysBtn').onclick = () => { dlg.close(); openKeysMenu(); };
+  $$('.tsize-seg [data-tsize]').forEach(b => b.onclick = () => { const k = b.dataset.tsize; document.documentElement.dataset.tsize = k; try { localStorage.setItem('tt-tsize', k); } catch (e) { } $$('.tsize-seg [data-tsize]').forEach(x => x.classList.toggle('active', x === b)); });
   $$('[data-langpick]').forEach(b => b.onclick = () => { if (b.dataset.langpick !== I18N.lang) setLang(b.dataset.langpick); });
   $('#helpMenuBtn').onclick = () => { dlg.close(); go('#/help'); };
   $('#homeMenuBtn').onclick = () => { dlg.close(); go('#/'); };
@@ -2444,6 +2447,7 @@ async function boot() {
   const topH = () => document.documentElement.style.setProperty('--top-h', ($('.topbar')?.offsetHeight || 61) + 'px'); topH(); window.addEventListener('resize', topH);
   const vp = $('#verPill'); if (vp) { vp.textContent = 'v' + APP_VERSION; vp.title = 'גרסה ' + APP_VERSION + ' · ' + APP_BUILD; vp.onclick = openChangelog; }
   $('#helpBtn').onclick = () => go('#/help');
+  $('#tsizeBtn')?.addEventListener('click', () => { const order = ['m', 'l', 'xl', 'xxl']; const cur = document.documentElement.dataset.tsize || 'l'; const k = order[(order.indexOf(cur) + 1) % order.length]; document.documentElement.dataset.tsize = k; try { localStorage.setItem('tt-tsize', k); } catch (e) { } toast({ m: 'גודל טקסט: רגיל', l: 'גודל טקסט: גדול', xl: 'גודל טקסט: גדול מאוד', xxl: 'גודל טקסט: ענק' }[k]); });
   if (isEn()) { const SHORT = { overview: 'Home', itinerary: 'Route', guide: 'Guide', search: 'Search', budget: 'Budget', bookings: 'Bookings', checklist: 'Lists' };
     $$('#tabbar button[data-tab]').forEach(b => { const sp = b.querySelector('span'); b.textContent = ''; b.append(sp, SHORT[b.dataset.tab] || ''); });
     const ta = $('#tabAi'); if (ta) { const sp = ta.querySelector('span'); ta.textContent = ''; ta.append(sp, 'Agent'); } }
