@@ -12,7 +12,7 @@ Vanilla JS + Firebase, פריסה ב-Netlify. עובדת בטלפון וניתנ
 2. **Authentication** → Sign-in method → הפעל Google ו-Email/Password.
 3. **Firestore Database** → Create database (Production mode).
 4. **Storage** → Get started (לצירוף קבצים).
-5. Project settings → Your apps → Web app → העתק את ה-config אל `firebase-config.js`.
+5. Project settings → Your apps → Web app → העתק את ה-config אל `firebase-config.js` – **או** הדבק אותו באפליקציה: 👤 ← 🔑 מפתחות API וחיבור ענן ← התחבר.
 6. Firestore → Rules → הדבק את התוכן של `firestore.rules` → Publish.
 7. Storage → Rules → הדבק את `storage.rules` → Publish.
 8. Authentication → Settings → Authorized domains → הוסף את הדומיין של Netlify.
@@ -32,6 +32,8 @@ Vanilla JS + Firebase, פריסה ב-Netlify. עובדת בטלפון וניתנ
 | `TRAVELPAYOUTS_TOKEN` | travelpayouts.com | Aviasales – מאות חברות וסוכנויות (מחירים מחיפושים אחרונים). חינם, דורש אישור |
 | `ANTHROPIC_API_KEY` | console.anthropic.com | סוכן חכם (Claude) |
 | `GOOGLE_PLACES_KEY` | Google Cloud | מסעדות ואטרקציות עם דירוג, מחיר ו״פתוח עכשיו״ |
+
+**או מתוך האפליקציה:** 👤 ← 🔑 מפתחות API וחיבור ענן. המפתח נשמר רק במכשיר ונשלח לשרת החיפוש של האתר בכל בקשה (לא נשמר בשרת). מפתח ב-Netlify גובר ועובד לכל המשתמשים – לכן זו הדרך המומלצת. הכפתור "בדיקה" מראה לכל ספק אם הוא מחובר ומאיפה.
 
 הנוסחה ל״הכי משתלם״ בטיסות: מחיר + ₪60 לכל שעת טיסה + ₪150 לכל עצירה − ₪180 אם מזוודה כלולה. במלונות: דירוג × אמינות הביקורות ÷ מחיר.
 השכרת רכב: אין כרגע API ציבורי שמאגד את כל החברות – הכפתור פותח את Kayak, Momondo ו-Expedia עם הפרטים ממולאים.

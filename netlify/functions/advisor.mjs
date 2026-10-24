@@ -8,8 +8,9 @@
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } });
 export default async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return json({ error: 'חסר ANTHROPIC_API_KEY במשתני הסביבה של Netlify' }, 500);
+  let devKey = ''; try { const raw = req.headers.get('x-tt-keys'); if (raw) devKey = String(JSON.parse(Buffer.from(raw, 'base64').toString('utf8')).ANTHROPIC_API_KEY || '').trim(); } catch { }
+  const key = process.env.ANTHROPIC_API_KEY || devKey;
+  if (!key) return json({ error: 'חסר ANTHROPIC_API_KEY – הכניסו אותו ב-Netlify או בהגדרות האפליקציה (👤 ← 🔑 מפתחות API)' }, 500);
   let b; try { b = await req.json(); } catch { return json({ error: 'bad json' }, 400); }
   const messages = Array.isArray(b.messages) ? b.messages.slice(-24) : [];
   if (!messages.length) return json({ error: 'no messages' }, 400);

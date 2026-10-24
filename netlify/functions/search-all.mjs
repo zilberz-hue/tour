@@ -6,7 +6,15 @@
 //    TRAVELPAYOUTS_TOKEN   – Aviasales, מאות חברות וסוכנויות (travelpayouts.com)
 //    GOOGLE_PLACES_KEY     – מסעדות ואטרקציות (Google Places API)
 // =====================================================================
-const env = k => process.env[k];
+import { AsyncLocalStorage } from 'node:async_hooks';
+// מפתחות: קודם משתני הסביבה של Netlify, ואם חסר – מפתח שהמשתמש הכניס בהגדרות האפליקציה (נשלח בכותרת x-tt-keys, לא נשמר בשרת)
+const KEY_NAMES = ['DUFFEL_TOKEN', 'SERPAPI_KEY', 'TRAVELPAYOUTS_TOKEN', 'GOOGLE_PLACES_KEY', 'ANTHROPIC_API_KEY'];
+const reqKeys = new AsyncLocalStorage();
+const env = k => process.env[k] || reqKeys.getStore()?.[k];
+export function readClientKeys(req) {
+  try { const raw = req.headers.get('x-tt-keys'); if (!raw) return {}; const o = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+    return Object.fromEntries(KEY_NAMES.filter(k => typeof o[k] === 'string' && o[k].trim()).map(k => [k, o[k].trim().slice(0, 300)])); } catch { return {}; }
+}
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } });
 const withTimeout = (p, ms = 28000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 const iata = s => String(s || '').trim().toUpperCase().slice(0, 3);
@@ -125,9 +133,11 @@ const PROVIDERS = {
   reviews: [['Google Places', 'GOOGLE_PLACES_KEY', placeReviews]]
 };
 
-export default async (req) => {
+export default async (req) => reqKeys.run(readClientKeys(req), () => handle(req));
+async function handle(req) {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   let b; try { b = await req.json(); } catch { return json({ error: 'bad body' }, 400); }
+  if (b.kind === 'status') { const dev = reqKeys.getStore() || {}; return json({ keys: Object.fromEntries(KEY_NAMES.map(k => [k, process.env[k] ? 'server' : dev[k] ? 'device' : 'none'])) }); }
   const kind = b.kind; const all = PROVIDERS[kind];
   // only = שם ספק אחד (לבדיקה חיה ספק-אחר-ספק עם חיווי לכל מנוע)
   const list = all && b.only ? all.filter(([n]) => n === b.only) : all;
@@ -154,4 +164,4 @@ export default async (req) => {
   });
   const results = settled.flatMap(s => s.status === 'fulfilled' ? s.value : []);
   return json({ kind, providers, results });
-};
+}

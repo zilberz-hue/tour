@@ -454,3 +454,11 @@ body.ai-open .tabbar{z-index:45}
 
 /* v19: Israeli providers */
 .linkcard.il{border-color:rgba(56,120,220,.35)}
+
+/* v20: keys & cloud settings */
+.keysec{border:1px solid var(--card-b);border-radius:14px;padding:12px;margin-bottom:12px}
+.keysec h3{margin:0 0 6px}
+.keyrow{padding:10px 0;border-top:1px solid var(--card-b)}
+.keyrow:first-of-type{border-top:0}
+.keyrow input{flex:1;min-width:0;font-family:ui-monospace,monospace;font-size:calc(13px * var(--fs))}
+#fbPaste{width:100%;font-family:ui-monospace,monospace;font-size:calc(12px * var(--fs))}

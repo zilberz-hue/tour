@@ -3,6 +3,8 @@
 //  Vanilla JS + Firebase (Auth / Firestore / Storage). מצב מקומי כגיבוי.
 // =====================================================================
 import { firebaseConfig } from './firebase-config.js';
+// חיבור Firebase: מהקובץ firebase-config.js, ואם ריק – מה שהודבק בהגדרות האפליקציה (נשמר במכשיר)
+const FB = (() => { if (firebaseConfig.apiKey) return { ...firebaseConfig, _src: 'file' }; try { const c = JSON.parse(localStorage.getItem('tt-firebase')); if (c?.apiKey) return { ...c, _src: 'device' }; } catch (e) { } return {}; })();
 
 const FB_VER = '10.12.2';
 const LS_KEY = 'tizon-tour-v5';
@@ -10,9 +12,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '1.11.0';
-const APP_BUILD = '2026-10-24 15:45';
+const APP_VERSION = '1.12.0';
+const APP_BUILD = '2026-10-24 15:55';
 const CHANGELOG = [
+  ['1.12.0', '24/10/2026 15:55', ['🔑 מפתחות API מתוך ההגדרות (👤 ← מפתחות API) – נשמרים רק במכשיר, עם בדיקת מה מחובר', '☁️ חיבור Firebase בהדבקה מההגדרות, בלי לערוך קוד']],
   ['1.11.0', '24/10/2026 15:45', ['🇮🇱 ספקי טיסות ישראליים: SkyGini, SKYMAX של מקס, איסתא, גוליבר ודקה 90 – בלחיצה פרטי החיפוש מועתקים להדבקה']],
   ['1.10.0', '24/10/2026 15:35', ['👥 עלות לכל נוסע: כל אחד רואה מה הוא משלם – הוצאות אישיות (טיסה מנקודת היציאה שלו), חלקו במשותף והערכה, בשקלים ובדולרים', 'שיוך הערכות תקציב לנוסע (למשל ביטוח נסיעות רק לצחי)', 'בסקירה: סה״כ לכל נוסע']],
   ['1.9.1', '24/10/2026 15:25', ['הסוכן החכם עבר לתפריט התחתון – כפתור מודגש באמצע (במחשב: בתפריט הצד)']],
@@ -163,7 +166,7 @@ const CloudStore = {
       import(`${base}/firebase-firestore.js`), import(`${base}/firebase-storage.js`)
     ]);
     this.A = A; this.F = F; this.S = S;
-    const app = initializeApp(firebaseConfig);
+    const { _src, ...fbCfg } = FB; const app = initializeApp(fbCfg);
     this.auth = A.getAuth(app); this.db = F.getFirestore(app);
     try { this.storage = S.getStorage(app); } catch (e) { this.storage = null; }
     A.onAuthStateChanged(this.auth, user => { this.user = user; this._unsub?.forEach(u => u()); this.trips = []; if (user) this._listen(user); onAuth(user); });
@@ -768,7 +771,7 @@ function winnersBox(t, offers) {
 }
 async function searchAll(body) {
   let r;
-  try { r = await fetch('/.netlify/functions/search-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+  try { r = await fetch('/.netlify/functions/search-all', { method: 'POST', headers: { 'Content-Type': 'application/json', ...keyHeaders() }, body: JSON.stringify(body) }); }
   catch (e) { throw new Error('אין חיבור לשרת החיפוש'); }
   if (r.status === 404) throw new Error('החיפוש החי יעבוד אחרי פריסה ל-Netlify עם הפונקציה search-all ומפתחות הספקים (הסבר ב-README). בינתיים – כפתור ההשוואה פותח את כל האתרים.');
   const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || ('שגיאה ' + r.status));
@@ -1753,7 +1756,7 @@ function aiTools(t) {
 async function aiNetlify(t, system, turns, onText) {
   const tools = aiTools(t); const msgs = turns.map(x => ({ role: x.role, content: x.content })); let out = '';
   for (let round = 0; round < 6; round++) {
-    let r; try { r = await fetch('/.netlify/functions/advisor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AI.ctl?.signal, body: JSON.stringify({ system, messages: msgs, tools: tools.map(x => ({ name: x.name, description: x.description, input_schema: x.inputSchema })) }) }); }
+    let r; try { r = await fetch('/.netlify/functions/advisor', { method: 'POST', headers: { 'Content-Type': 'application/json', ...keyHeaders() }, signal: AI.ctl?.signal, body: JSON.stringify({ system, messages: msgs, tools: tools.map(x => ({ name: x.name, description: x.description, input_schema: x.inputSchema })) }) }); }
     catch (e) { if (e.name === 'AbortError') throw { code: 'cancelled' }; throw new Error('אין חיבור לשרת'); }
     if (r.status === 404) throw new Error('הסוכן החכם יעבוד אחרי פריסה ל-Netlify עם הפונקציה advisor ומפתח ANTHROPIC_API_KEY (הסבר ב-README), או בתוך Claude.');
     const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error?.message || j.error || ('שגיאה ' + r.status));
@@ -1886,6 +1889,7 @@ function openUserMenu() {
       <div class="add-inline"><input id="shareEmail" type="email" placeholder="email@example.com"><button type="button" class="btn sm primary" id="shareBtn">הזמן</button></div>
       <div class="small muted" style="margin-top:6px">${(t.inviteEmails || []).map(esc).join(', ') || 'אין עדיין שותפים'}</div></div>` : ''}
     <div class="grid">
+      <button type="button" class="btn" id="keysBtn">🔑 מפתחות API וחיבור ענן</button>
       <button type="button" class="btn" id="verBtn">ℹ️ גרסה ${APP_VERSION} · ${APP_BUILD.split(' ')[0].split('-').reverse().join('/')} ${APP_BUILD.split(' ')[1]} · מה חדש</button>
       <div class="theme-seg">${THEMES.map(([id, ico, name]) => `<button type="button" class="btn" data-themepick="${id}">${ico} ${name.split(' ')[0]}</button>`).join('')}</div>
       <button type="button" class="btn" id="exportBtn">⬇️ ייצוא גיבוי (JSON)</button>
@@ -1896,6 +1900,7 @@ function openUserMenu() {
   $('#modalCancel').onclick = () => dlg.close(); $('#modalForm').onsubmit = e => { e.preventDefault(); dlg.close(); };
   dlg.showModal();
   $('#verBtn').onclick = () => { dlg.close(); openChangelog(); };
+  $('#keysBtn').onclick = () => { dlg.close(); openKeysMenu(); };
   $$('.theme-seg [data-themepick]').forEach(b => b.onclick = () => setTheme(b.dataset.themepick)); applyTheme();
   $('#exportBtn').onclick = () => { const blob = new Blob([JSON.stringify({ app: 'tizon-tour', v: 1, trips: state.trips }, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `tizon-tour-backup-${isoDate(new Date())}.json`; a.click(); };
   $('#importFile').onchange = async e => {
@@ -1931,6 +1936,59 @@ function openThemeMenu() {
 themeMQ?.addEventListener?.('change', () => { if (themePref() === 'auto') applyTheme('auto'); });
 
 document.addEventListener('click', e => { const a = e.target.closest?.('a[data-copy]'); if (!a) return; const txt = a.dataset.copy; try { navigator.clipboard?.writeText(txt).then(() => toast('📋 הועתק: ' + txt), () => toast(txt)); } catch (er) { toast(txt); } });
+
+// ---------- 🔑 מפתחות API + חיבור Firebase מתוך ההגדרות ----------
+const API_KEYS = [
+  ['SERPAPI_KEY', 'SerpApi', 'Google Flights + Google Hotels – כל החברות וכל אתרי ההזמנות (250 חיפושים בחודש חינם)', 'https://serpapi.com/manage-api-key'],
+  ['DUFFEL_TOKEN', 'Duffel', 'טיסות חיות מ-300+ חברות', 'https://app.duffel.com/'],
+  ['TRAVELPAYOUTS_TOKEN', 'Travelpayouts', 'Aviasales – מאות חברות וסוכנויות (חינם)', 'https://www.travelpayouts.com/programs/100/tools/api'],
+  ['GOOGLE_PLACES_KEY', 'Google Places', 'מסעדות, אטרקציות וחוות דעת', 'https://console.cloud.google.com/apis/credentials'],
+  ['ANTHROPIC_API_KEY', 'Anthropic (Claude)', 'הסוכן החכם באתר ב-Netlify (בתוך Claude לא נדרש)', 'https://console.anthropic.com/settings/keys']
+];
+const devKeys = () => { try { return JSON.parse(localStorage.getItem('tt-keys')) || {}; } catch (e) { return {}; } };
+function keyHeaders() { const k = devKeys(); if (!Object.values(k).some(Boolean)) return {}; try { return { 'x-tt-keys': btoa(unescape(encodeURIComponent(JSON.stringify(k)))) }; } catch (e) { return {}; } }
+function parseFirebaseConfig(txt) {
+  const out = {}; for (const f of ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'measurementId']) { const m = new RegExp(`["']?${f}["']?\\s*:\\s*["']([^"']+)["']`).exec(txt); if (m) out[f] = m[1]; }
+  return out.apiKey && out.projectId ? out : null;
+}
+async function keyStatus() {
+  try { const r = await fetch('/.netlify/functions/search-all', { method: 'POST', headers: { 'Content-Type': 'application/json', ...keyHeaders() }, body: JSON.stringify({ kind: 'status' }) });
+    if (r.status === 404) return { offline: true }; const j = await r.json(); return j.keys ? j : { offline: true }; } catch (e) { return { offline: true }; }
+}
+function openKeysMenu() {
+  const dlg = $('#modal'); const k = devKeys();
+  $('#modalTitle').textContent = '🔑 מפתחות API וחיבור ענן';
+  $('#modalBody').innerHTML = `
+    <div class="keysec"><h3>☁️ חיבור Firebase</h3>
+      <div class="small">${FB.apiKey ? `<span class="chip ok">✓ מחובר</span> פרויקט <b dir="ltr">${esc(FB.projectId)}</b>${FB._src === 'file' ? ' (מהקוד)' : ' (מההגדרות, במכשיר הזה)'}` : '<span class="chip">○ לא מחובר</span> כרגע הנתונים נשמרים רק בדפדפן הזה'}</div>
+      ${FB._src === 'file' ? '' : `<div class="small muted" style="margin:8px 0 6px">ב-Firebase Console: Project settings ← Your apps ← Web app ← העתיקו את <span dir="ltr">firebaseConfig</span> והדביקו כאן. (ההגדרות האלה אינן סודיות.)</div>
+      <textarea id="fbPaste" rows="4" dir="ltr" placeholder='const firebaseConfig = { apiKey: "...", authDomain: "...", projectId: "...", ... };'></textarea>
+      <div class="row wrap" style="margin-top:8px"><button type="button" class="btn green" id="fbSave">התחבר</button>${FB._src === 'device' ? '<button type="button" class="btn danger" id="fbOff">נתק</button>' : ''}</div>`}
+    </div>
+    <div class="keysec"><h3>🔑 מפתחות ספקים</h3>
+      <div class="small muted" style="margin-bottom:8px">הדרך המומלצת: Netlify ← Site configuration ← Environment variables (בטוח, ועובד לכל המשתמשים). אפשר גם להכניס כאן – המפתח נשמר <b>רק במכשיר הזה</b>, לא בענן ולא בקוד, ונשלח רק לשרת החיפוש של האתר.</div>
+      <div id="keyStat" class="small muted" style="margin-bottom:8px">בודק מה מחובר…</div>
+      ${API_KEYS.map(([id, name, what, url]) => `<div class="keyrow"><div class="row"><b>${name}</b><span class="spacer"></span><span class="chip" data-kst="${id}">…</span></div>
+        <div class="small muted">${what} · <a href="${url}" target="_blank" rel="noopener">איפה משיגים ↗</a></div>
+        <div class="row" style="gap:6px;margin-top:4px"><input type="password" dir="ltr" autocomplete="off" spellcheck="false" data-key="${id}" value="${esc(k[id] || '')}" placeholder="${id}"><button type="button" class="mini" data-peek="${id}" aria-label="הצג">👁️</button></div></div>`).join('')}
+    </div>`;
+  $('#modalDelete').hidden = true; $('#modalSave').textContent = 'שמירת מפתחות';
+  $('#modalCancel').onclick = () => dlg.close();
+  $('#modalForm').onsubmit = e => { e.preventDefault(); const o = {}; $$('[data-key]').forEach(i => { if (i.value.trim()) o[i.dataset.key] = i.value.trim(); });
+    try { localStorage.setItem('tt-keys', JSON.stringify(o)); } catch (er) { } toast(`🔑 נשמרו ${Object.keys(o).length} מפתחות במכשיר`); refreshKeyStatus(); };
+  $$('[data-peek]').forEach(b => b.onclick = () => { const i = $(`[data-key="${b.dataset.peek}"]`); i.type = i.type === 'password' ? 'text' : 'password'; });
+  $('#fbSave')?.addEventListener('click', () => { const c = parseFirebaseConfig($('#fbPaste').value); if (!c) return toast('לא זוהו apiKey ו-projectId – הדביקו את כל ה-firebaseConfig');
+    try { localStorage.setItem('tt-firebase', JSON.stringify(c)); } catch (er) { } toast('☁️ מתחבר ל-Firebase…'); setTimeout(() => location.reload(), 600); });
+  $('#fbOff')?.addEventListener('click', () => { if (!confirm('לנתק את Firebase במכשיר הזה? הנתונים בענן נשארים.')) return; try { localStorage.removeItem('tt-firebase'); } catch (er) { } location.reload(); });
+  dlg.showModal(); refreshKeyStatus();
+}
+async function refreshKeyStatus() {
+  const st = await keyStatus(); const el = $('#keyStat'); if (!el) return;
+  if (st.offline) { el.textContent = '⚠️ שרת החיפוש לא פרוס כאן (רק ב-Netlify) – המפתחות יעבדו אחרי חיבור האתר ל-Netlify.'; $$('[data-kst]').forEach(c => { c.textContent = devKeys()[c.dataset.kst] ? 'נשמר במכשיר' : 'חסר'; c.className = 'chip ' + (devKeys()[c.dataset.kst] ? 'gold' : ''); }); return; }
+  const n = Object.values(st.keys).filter(v => v !== 'none').length; el.textContent = `✓ השרת מחובר · ${n}/${API_KEYS.length} ספקים פעילים`;
+  $$('[data-kst]').forEach(c => { const v = st.keys[c.dataset.kst]; c.textContent = v === 'server' ? '✓ ב-Netlify' : v === 'device' ? '✓ מהמכשיר' : '✗ חסר'; c.className = 'chip ' + (v === 'none' ? 'warn' : 'ok'); });
+}
+
 // ---------- boot ----------
 function onTrips(trips) { state.trips = trips; state.ready = true; render(); }
 async function boot() {
@@ -1945,7 +2003,7 @@ async function boot() {
   $('#tabAi').onclick = () => ($('#aiPanel').hidden ? aiOpen() : aiClose());
   setupAdvisor();
   render();
-  if (firebaseConfig.apiKey) {
+  if (FB.apiKey) {
     state.store = CloudStore;
     try { await CloudStore.init(onTrips, user => { state.ready = true; if (!user) state.trips = []; render(); }); }
     catch (e) { console.error(e); toast('Firebase לא נטען – עובר למצב מקומי'); state.store = LocalStore; await LocalStore.init(onTrips); }
