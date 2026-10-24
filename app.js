@@ -14,9 +14,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '2.2.4';
-const APP_BUILD = '2026-10-24 20:50';
+const APP_VERSION = '2.2.5';
+const APP_BUILD = '2026-10-24 22:25';
 const CHANGELOG = [
+  ['2.2.5', '24/10/2026 22:25', ['💾 כפתורי השמירה לא נתקעים יותר: שומר מיד במכשיר וסוגר את החלון, והסנכרון לענן רץ ברקע', 'שמירה גם בלי חיבור – השינויים נשמרים במכשיר ועולים לענן כשהחיבור חוזר', 'הודעה ברורה אם הענן לא מוגדר (חוקי Firestore / מסד נתונים)']],
   ['2.2.4', '24/10/2026 20:50', ['📱 תפריט גלילה בנייד: התפריט התחתון נגלל בהחלקה, כל כפתור בגודל נוח, והלשונית הפעילה ממורכזת', 'תפריטי הלשוניות בתוך המסכים נגללים הצידה במקום להישבר']],
   ['2.2.3', '24/10/2026 21:00', ['תוקן: כפתור שמירת הפרופיל לא עבד כששער הדולר או האירו הוזן עם יותר משתי ספרות אחרי הנקודה (למשל 3.725)']],
   ['2.2.2', '24/10/2026 20:30', ['תוקן: כפתור שמירת המפתחות בהגדרות – החלון נסגר ומופיע אישור', '🌊 טיול קרמל מופיע תמיד ברשימת הטיולים בחשבון של צחי, גם אם כבר יש טיולים אחרים', 'כפתור לטעינת טיול קרמל ברשימת הטיולים כשהוא לא קיים']],
@@ -173,6 +174,7 @@ const LocalStore = {
 };
 
 const OWNER_EMAILS = ['zilberz@gmail.com'];
+const cloudErr = e => { const c = e?.code || ''; return c.includes('permission') ? '⚠️ הענן סירב לשמירה – צריך להדביק את חוקי Firestore (firestore.rules) ב-Firebase Console' : c.includes('not-found') ? '⚠️ מסד הנתונים Firestore עוד לא נוצר ב-Firebase Console' : c.includes('unauthenticated') ? '⚠️ צריך להתחבר מחדש כדי לשמור בענן' : '⚠️ השמירה בענן נכשלה: ' + (c || e?.message || ''); };
 const CloudStore = {
   mode: 'cloud', user: null, trips: [],
   async init(onChange, onAuth) {
@@ -184,7 +186,9 @@ const CloudStore = {
     ]);
     this.A = A; this.F = F; this.S = S;
     const { _src, ...fbCfg } = FB; const app = initializeApp(fbCfg);
-    this.auth = A.getAuth(app); this.db = F.getFirestore(app);
+    this.auth = A.getAuth(app);
+    // מטמון מקומי קבוע: שינויים נשמרים במכשיר מיד ומסתנכרנים לענן כשיש חיבור (גם אחרי סגירת הדף)
+    try { this.db = F.initializeFirestore ? F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }) : F.getFirestore(app); } catch (e) { this.db = F.getFirestore(app); }
     try { this.storage = S.getStorage(app); } catch (e) { this.storage = null; }
     A.onAuthStateChanged(this.auth, user => { this.user = user; this._unsub?.forEach(u => u()); this.trips = []; if (user) this._listen(user); onAuth(user); });
   },
@@ -221,11 +225,21 @@ const CloudStore = {
     trip.updatedAt = Date.now();
     if (!trip.ownerId) trip.ownerId = this.user.uid;
     if (!trip.members?.includes(this.user.uid)) trip.members = [...(trip.members || []), this.user.uid];
-    const { doc, setDoc } = this.F; await setDoc(doc(this.db, 'trips', trip.id), clone(trip));
+    const data = clone(trip);
+    // עדכון מיידי במסך (לא מחכים לשרת)
+    const i = this.trips.findIndex(t => t.id === trip.id); if (i >= 0) this.trips[i] = data; else this.trips.push(data); this.onChange([...this.trips]);
+    const { doc, setDoc } = this.F; return this._write(setDoc(doc(this.db, 'trips', trip.id), data));
   },
-  async deleteTrip(id) { const { doc, deleteDoc } = this.F; await deleteDoc(doc(this.db, 'trips', id)); },
+  // כתיבה לענן ברקע: הכפתור לא נתקע אם השרת איטי/לא זמין; הודעה רק אם יש בעיה אמיתית
+  _write(promise) {
+    let settled = false;
+    promise.then(() => { settled = true; if (this._pendingToast) { this._pendingToast = false; toast('☁️ סונכרן לענן'); } }).catch(e => { settled = true; console.error(e); setTimeout(() => toast(cloudErr(e)), 1200); });
+    setTimeout(() => { if (!settled && !this._pendingToast) { this._pendingToast = true; toast('💾 נשמר במכשיר – יסונכרן לענן כשהחיבור יחזור'); } }, 3000);
+    return Promise.resolve(); // לא מחכים לשרת – הכפתור משתחרר מיד
+  },
+  async deleteTrip(id) { this.trips = this.trips.filter(t => t.id !== id); this.onChange([...this.trips]); const { doc, deleteDoc } = this.F; return this._write(deleteDoc(doc(this.db, 'trips', id))); },
   async getProfile() { const { doc, getDoc } = this.F; const s = await getDoc(doc(this.db, 'users', this.user.uid)); return s.exists() ? s.data() : null; },
-  async saveProfile(p) { const { doc, setDoc } = this.F; await setDoc(doc(this.db, 'users', this.user.uid), clone(p)); },
+  async saveProfile(p) { const { doc, setDoc } = this.F; return this._write(setDoc(doc(this.db, 'users', this.user.uid), clone(p))); },
   async uploadFile(tripId, file) {
     if (!this.storage) throw new Error('Firebase Storage לא מוגדר בפרויקט');
     const { ref, uploadBytes, getDownloadURL } = this.S;
