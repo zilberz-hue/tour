@@ -10,6 +10,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<script>
+// ערכת צבע: auto (לפי המכשיר) / light / dark – נקבע לפני הציור כדי שלא יהבהב
+(function () { var pref = 'auto'; try { pref = localStorage.getItem('tt-theme') || 'auto'; } catch (e) { }
+  var dark = pref === 'dark' || (pref === 'auto' && !(window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches));
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light'; document.documentElement.dataset.themePref = pref; })();
+</script>
 </head>
 <body>
 <header class="topbar">
@@ -19,6 +25,7 @@
   </button>
   <div class="topbar-actions">
     <span class="mode-pill" id="modePill"></span>
+    <button class="icon-btn" id="themeToggle" aria-label="ערכת צבע" title="ערכת צבע">🌗</button>
     <button class="icon-btn" id="userBtn" aria-label="חשבון">👤</button>
   </div>
 </header>

@@ -1695,7 +1695,7 @@ function openUserMenu() {
       <div class="add-inline"><input id="shareEmail" type="email" placeholder="email@example.com"><button type="button" class="btn sm primary" id="shareBtn">הזמן</button></div>
       <div class="small muted" style="margin-top:6px">${(t.inviteEmails || []).map(esc).join(', ') || 'אין עדיין שותפים'}</div></div>` : ''}
     <div class="grid">
-      <button type="button" class="btn" id="themeBtn">🌓 החלפת ערכת צבע</button>
+      <div class="theme-seg">${THEMES.map(([id, ico, name]) => `<button type="button" class="btn" data-themepick="${id}">${ico} ${name.split(' ')[0]}</button>`).join('')}</div>
       <button type="button" class="btn" id="exportBtn">⬇️ ייצוא גיבוי (JSON)</button>
       <label class="btn" style="text-align:center">⬆️ ייבוא גיבוי<input type="file" id="importFile" accept="application/json" hidden></label>
       ${S.mode === 'cloud' && S.user ? `<button type="button" class="btn danger" id="logoutBtn">יציאה</button>` : ''}
@@ -1703,7 +1703,7 @@ function openUserMenu() {
   $('#modalDelete').hidden = true; $('#modalSave').textContent = 'סגירה';
   $('#modalCancel').onclick = () => dlg.close(); $('#modalForm').onsubmit = e => { e.preventDefault(); dlg.close(); };
   dlg.showModal();
-  $('#themeBtn').onclick = () => { const r = document.documentElement; const nt = r.dataset.theme === 'light' ? 'dark' : 'light'; r.dataset.theme = nt; try { localStorage.setItem('tt-theme', nt); } catch (e) { } };
+  $$('.theme-seg [data-themepick]').forEach(b => b.onclick = () => setTheme(b.dataset.themepick)); applyTheme();
   $('#exportBtn').onclick = () => { const blob = new Blob([JSON.stringify({ app: 'tizon-tour', v: 1, trips: state.trips }, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `tizon-tour-backup-${isoDate(new Date())}.json`; a.click(); };
   $('#importFile').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
@@ -1714,10 +1714,33 @@ function openUserMenu() {
   $('#shareBtn')?.addEventListener('click', async () => { const em = $('#shareEmail').value.trim().toLowerCase(); if (!em.includes('@')) return toast('אימייל לא תקין'); await mutate(x => { x.inviteEmails = [...new Set([...(x.inviteEmails || []), em])]; }); toast('השותף הוזמן'); dlg.close(); });
 }
 
+
+// ---------- ערכת צבע: כהה / בהירה / אוטומטית ----------
+const THEMES = [['auto', '🌗', 'אוטומטי (לפי המכשיר)'], ['light', '☀️', 'בהיר'], ['dark', '🌙', 'כהה']];
+const themeMQ = window.matchMedia ? matchMedia('(prefers-color-scheme: light)') : null;
+function themePref() { try { return localStorage.getItem('tt-theme') || 'auto'; } catch (e) { return 'auto'; } }
+function applyTheme(pref = themePref()) {
+  const r = document.documentElement; const light = pref === 'light' || (pref === 'auto' && !!themeMQ?.matches);
+  r.dataset.theme = light ? 'light' : 'dark'; r.dataset.themePref = pref;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', light ? '#FAF7F1' : '#14130f');
+  const b = $('#themeToggle'); if (b) { const t = THEMES.find(x => x[0] === pref) || THEMES[0]; b.textContent = t[1]; b.title = 'ערכת צבע: ' + t[2]; }
+  $$('[data-themepick]').forEach(x => x.classList.toggle('active', x.dataset.themepick === pref));
+}
+function setTheme(pref) { try { localStorage.setItem('tt-theme', pref); } catch (e) { } applyTheme(pref); }
+function openThemeMenu() {
+  $('#themeMenu')?.remove();
+  const m = document.createElement('div'); m.id = 'themeMenu'; m.className = 'theme-menu card';
+  m.innerHTML = `<div class="small muted" style="margin-bottom:6px">ערכת צבע</div>` + THEMES.map(([id, ico, name]) => `<button data-themepick="${id}"><span>${ico}</span>${name}</button>`).join('');
+  document.body.appendChild(m); applyTheme();
+  m.querySelectorAll('[data-themepick]').forEach(b => b.onclick = () => { setTheme(b.dataset.themepick); toast(b.textContent.trim()); m.remove(); });
+  setTimeout(() => document.addEventListener('click', function off(e) { if (!m.contains(e.target)) { m.remove(); document.removeEventListener('click', off); } }), 0);
+}
+themeMQ?.addEventListener?.('change', () => { if (themePref() === 'auto') applyTheme('auto'); });
+
 // ---------- boot ----------
 function onTrips(trips) { state.trips = trips; state.ready = true; render(); }
 async function boot() {
-  try { const th = localStorage.getItem('tt-theme'); if (th) document.documentElement.dataset.theme = th; } catch (e) { }
+  applyTheme(); $('#themeToggle').onclick = e => { e.stopPropagation(); openThemeMenu(); };
   readRoute();
   $('#homeBtn').onclick = () => go('#/');
   $('#userBtn').onclick = openUserMenu;
