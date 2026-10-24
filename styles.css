@@ -420,3 +420,34 @@ body.ai-open .ai-fab{display:none}
 
 .mode-pill{white-space:nowrap}
 @media(max-width:480px){.mode-pill{font-size:0;padding:4px 7px}.mode-pill::first-letter{font-size:calc(14px * var(--fs))}.topbar-actions{gap:6px}}
+
+/* v17: smart agent lives in the menu */
+.ai-fab{display:none!important}
+.tabbar .tab-ai{position:relative;color:var(--gold);font-weight:800;white-space:nowrap}
+.tabbar .tab-ai span{filter:none;opacity:1;width:36px;height:36px;margin:-14px auto 0;border-radius:50%;display:grid;place-items:center;background:var(--grad);box-shadow:0 4px 12px rgba(0,0,0,.3);font-size:calc(18px * var(--fs))}
+.tabbar .tab-ai.active span{outline:2px solid var(--green);outline-offset:2px}
+body.ai-open .tabbar{z-index:45}
+.ai-panel{bottom:calc(var(--tab-h) + env(safe-area-inset-bottom));height:min(76vh,680px);padding-bottom:0}
+@media(max-width:400px){.tabbar .tab-ai{font-size:calc(10px * var(--fs))}}
+@media(min-width:1100px){
+  .tabbar .tab-ai{margin:6px 0;background:var(--grad);color:#14130f}
+  .tabbar .tab-ai span{width:auto;height:auto;margin:0;background:none;box-shadow:none}
+  .tabbar .tab-ai:hover{background:var(--grad);filter:brightness(1.05)}
+  .tabbar .tab-ai.active{box-shadow:inset -3px 0 0 var(--green)}
+  .ai-panel{bottom:24px;inset-inline-start:calc(var(--rail) + 24px)}
+}
+
+/* v18: per-traveler costs */
+.people-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:var(--gap)}
+.person{display:flex;flex-direction:column;gap:10px}
+.pava{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--grad);color:#14130f;font-weight:800;font-size:calc(18px * var(--fs));flex:none}
+.pname{font-size:calc(18px * var(--fs))}
+.ptotal{font-size:calc(24px * var(--fs));font-weight:800}
+.pbars{display:flex;height:8px;border-radius:99px;overflow:hidden;background:rgba(127,127,127,.15);gap:2px}
+.b-own{background:var(--gold)} .b-sh{background:var(--green)} .b-est{background:repeating-linear-gradient(45deg,var(--muted) 0 4px,transparent 4px 7px)}
+.plegend{display:flex;flex-wrap:wrap;gap:10px;color:var(--muted)}
+.plegend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-inline-end:4px;vertical-align:-1px}
+.kchip{display:inline-block;padding:0 6px;border-radius:6px;border:1px solid var(--card-b);font-size:calc(11px * var(--fs))}
+.kchip.gold{border-color:var(--gold);color:var(--gold)} .kchip.est{border-style:dashed}
+.plist .li{padding:8px 0}
+.pfor{max-width:150px}

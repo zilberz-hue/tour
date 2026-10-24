@@ -10,9 +10,11 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '1.9.0';
-const APP_BUILD = '2026-10-24 15:20';
+const APP_VERSION = '1.10.0';
+const APP_BUILD = '2026-10-24 15:35';
 const CHANGELOG = [
+  ['1.10.0', '24/10/2026 15:35', ['👥 עלות לכל נוסע: כל אחד רואה מה הוא משלם – הוצאות אישיות (טיסה מנקודת היציאה שלו), חלקו במשותף והערכה, בשקלים ובדולרים', 'שיוך הערכות תקציב לנוסע (למשל ביטוח נסיעות רק לצחי)', 'בסקירה: סה״כ לכל נוסע']],
+  ['1.9.1', '24/10/2026 15:25', ['הסוכן החכם עבר לתפריט התחתון – כפתור מודגש באמצע (במחשב: בתפריט הצד)']],
   ['1.9.0', '24/10/2026 15:20', ['בדיקת מחירים חיה: חיווי לכל מנוע בנפרד (Duffel, Google Flights, Aviasales, Google Hotels) והתוצאות נפתחות אוטומטית', 'בדיקה אוטומטית לפי מרווח לבחירה: 10 דק׳, רבע שעה, חצי שעה, שעה, 3 או 6 שעות, או כל מספר דקות', '"סוכן חכם" (במקום "יועץ AI") – לשונית קטנה בקצה המסך שלא מפריעה', 'מספר גרסה ו"מה חדש"']],
   ['1.8.1', '24/10/2026 15:07', ['תוקן: כפתור ⚙️ הגדרות לא נפתח', 'פונטים גדולים יותר', 'תצוגה מותאמת לטלפון, טאבלט ומחשב (סרגל צד במחשב)']],
   ['1.8.0', '24/10/2026 15:00', ['ערכת צבע בהירה + בחירה: כהה / בהיר / אוטומטי לפי המכשיר']],
@@ -119,6 +121,7 @@ function seedCarmel() {
     B('car', 'רכב שכור + ביטוח מלא + נהג נוסף', '', '2026-11-18', '2026-11-23', 650, 'USD'),
     B('activity', 'אקווריום מונטריי (2)', 'Monterey Bay Aquarium', '2026-11-21', '', 130, 'USD', 'planned', 'רק באונליין, מראש')
   ];
+  t.bookings[0].split = 'צחי'; t.bookings[1].split = 'רחל'; t.budgetFor = { insurance: 'צחי' };
   const L = text => ({ id: uid(), text, done: false });
   t.lists.packing = PACK_TEMPLATE.map(L);
   const now = Date.now();
@@ -271,7 +274,7 @@ function render() {
   if (state.store.mode === 'cloud' && !state.store.user) { tabbar.hidden = true; app.innerHTML = renderAuth(); bindAuth(); return; }
   const trip = curTrip();
   if (!trip) { tabbar.hidden = true; app.innerHTML = renderTripList(); bindTripList(); return; }
-  tabbar.hidden = false; $('#aiFab').hidden = false;
+  tabbar.hidden = false;
   $$('#tabbar button').forEach(b => b.classList.toggle('active', b.dataset.tab === state.tab));
   const views = { overview: renderOverview, itinerary: renderItinerary, guide: renderGuide, search: renderSearch, budget: renderBudget, bookings: renderBookings, checklist: renderChecklist };
   app.innerHTML = (views[state.tab] || renderOverview)(trip);
@@ -417,7 +420,7 @@ function renderOverview(t) {
 
   ${renderMorning(t)}
   <div class="grid grid-2 section">
-    <div class="card stat"><div class="lbl">תקציב מתוכנן</div><div class="val">${fmtMoney(tot.planned)}</div><div class="small muted">${fmtMoney(tot.planned / (t.travelers || 1))} לנוסע</div></div>
+    <div class="card stat"><div class="lbl">תקציב מתוכנן</div><div class="val">${fmtMoney(tot.planned)}</div><div class="small muted">${(() => { const pc = personCosts(t); return pc ? `<a href="#/trip/${t.id}/budget" data-bvgo="people">${pc.people.map(p => `${esc(p.name)} ${fmtMoney(p.total)}`).join(' · ')}</a>` : fmtMoney(tot.planned / (t.travelers || 1)) + ' לנוסע'; })()}</div></div>
     <div class="card stat"><div class="lbl">שולם עד כה</div><div class="val" style="color:${tot.actual > tot.planned && tot.planned ? 'var(--danger)' : 'var(--green)'}">${fmtMoney(tot.actual)}</div>
       <div class="bar ${tot.actual > tot.planned ? 'over' : ''}" style="margin-top:6px"><i style="width:${tot.planned ? Math.min(100, tot.actual / tot.planned * 100) : 0}%"></i></div></div>
     <div class="card stat"><div class="lbl">ציוד</div><div class="val">${pDone}/${pack.length}</div><div class="bar gold" style="margin-top:6px"><i style="width:${pack.length ? pDone / pack.length * 100 : 0}%"></i></div></div>
@@ -487,8 +490,9 @@ function renderBudget(t) {
       <div class="stat"><div class="lbl">נותר</div><div class="val" style="color:${tot.planned - tot.actual < 0 ? 'var(--danger)' : 'var(--cream)'}">${fmtMoney(tot.planned - tot.actual)}</div></div></div>
       ${tot.committed ? `<div class="small muted" style="margin-top:6px">⏳ הוזמן וטרם שולם: ${fmtMoney(tot.committed)}</div>` : ''}
       <div class="small muted" style="margin-top:6px">שער: $1 = ₪${t.rates?.USD} · הזמנות בסטטוס "שולם" נספרות אוטומטית</div></div>
-    <div class="row section"><div class="seg"><button data-bv="cats" class="${state.budgetView === 'cats' ? 'active' : ''}">לפי קטגוריה</button><button data-bv="list" class="${state.budgetView === 'list' ? 'active' : ''}">כל ההוצאות</button><button data-bv="split" class="${state.budgetView === 'split' ? 'active' : ''}">⚖️ חלוקה</button></div></div>`;
+    <div class="row section"><div class="seg"><button data-bv="cats" class="${state.budgetView === 'cats' ? 'active' : ''}">לפי קטגוריה</button><button data-bv="people" class="${state.budgetView === 'people' ? 'active' : ''}">👥 לפי נוסע</button><button data-bv="list" class="${state.budgetView === 'list' ? 'active' : ''}">כל ההוצאות</button><button data-bv="split" class="${state.budgetView === 'split' ? 'active' : ''}">⚖️ חלוקה</button></div></div>`;
   if (state.budgetView === 'split') return head + renderSplit(t);
+  if (state.budgetView === 'people') return head + renderPeople(t);
   if (state.budgetView === 'cats') {
     return head + `<div class="card section"><ul class="list">${CATS.map(c => {
       const p = Number(t.budget[c.id]) || 0, a = tot.byCat[c.id] || 0; if (!p && !a) return `<li class="li clickable" data-cat="${c.id}"><div class="ico">${c.ico}</div><div class="main"><div class="t muted">${c.name}</div></div><span class="small muted">הגדר ←</span></li>`;
@@ -505,6 +509,60 @@ function renderBudget(t) {
     ${paidB.map(b => `<li class="li"><div class="ico">${bookType(b.type).ico}</div><div class="main"><div class="t">${esc(b.title)}</div><div class="small muted">מהזמנות · שולם</div></div><div class="amt">${fmtMoney(b.price, b.currency)}</div></li>`).join('')}
   </ul>` : `<div class="empty"><span class="big">🧾</span>עוד אין הוצאות. הוסף הוצאה או סמן הזמנה כ"שולם".</div>`}</div>`;
 }
+
+// =====================================================================
+//  👥 עלות לכל נוסע – מה כל אחד משלם בפועל (טיסה משלו, חלק במשותף, הערכה)
+// =====================================================================
+const travelerNames = t => (t.travelersList || []).map(x => x.name).filter(Boolean);
+// עבור מי ההוצאה: split מפורש, או זיהוי לפי "שם:" בתחילת הכותרת (למשל "רחל: DFW ⇄ SFO")
+function forWhom(t, it) {
+  if (it.split && it.split !== 'all') return it.split;
+  if (!it.split) { const n = travelerNames(t).find(n => (it.title || '').trim().startsWith(n + ':')); if (n) return n; }
+  return 'all';
+}
+function personCosts(t) {
+  const names = travelerNames(t); if (names.length < 2) return null;
+  const P = Object.fromEntries(names.map(n => [n, { name: n, origin: (t.travelersList.find(x => x.name === n) || {}).origin || '', own: 0, shared: 0, est: 0, items: [] }]));
+  const usedByCat = Object.fromEntries(CATS.map(c => [c.id, 0]));
+  const add = (title, cat, ils, who, status) => {
+    usedByCat[cat] = (usedByCat[cat] || 0) + ils;
+    if (who !== 'all' && P[who]) { P[who].own += ils; P[who].items.push({ title, cat, ils, kind: 'own', status }); }
+    else names.forEach(n => { P[n].shared += ils / names.length; P[n].items.push({ title, cat, ils: ils / names.length, full: ils, kind: 'shared', status }); });
+  };
+  t.bookings.forEach(b => add(b.title, bookType(b.type).cat, toILS(t, b.price, b.currency), forWhom(t, b), STATUS[b.status]?.name || ''));
+  t.expenses.forEach(e => add(e.title || catById(e.cat).name, e.cat, toILS(t, e.amount, e.currency), forWhom(t, e), 'הוצאה'));
+  const estCats = [];
+  CATS.forEach(c => {
+    const rem = Math.max(0, (Number(t.budget?.[c.id]) || 0) - (usedByCat[c.id] || 0)); if (rem < 1) return;
+    const who = t.budgetFor?.[c.id] || 'all'; estCats.push({ cat: c.id, rem, who });
+    if (who !== 'all' && P[who]) { P[who].est += rem; P[who].items.push({ title: c.name + ' (הערכה)', cat: c.id, ils: rem, kind: 'est', status: 'הערכה' }); }
+    else names.forEach(n => { P[n].est += rem / names.length; P[n].items.push({ title: c.name + ' (הערכה)', cat: c.id, ils: rem / names.length, full: rem, kind: 'est', status: 'הערכה' }); });
+  });
+  names.forEach(n => { const x = P[n]; x.total = x.own + x.shared + x.est; });
+  return { names, people: names.map(n => P[n]), estCats };
+}
+function renderPeople(t) {
+  const pc = personCosts(t);
+  if (!pc) return `<div class="card section small muted">כדי לראות עלות לכל נוסע, הוסיפו שמות ונקודות יציאה בהגדרות הטיול (למשל: צחי:TLV, רחל:DFW).</div>`;
+  const usd = n => `$${Math.round(n / (t.rates?.USD || 3.1)).toLocaleString('en-US')}`;
+  const KIND = { own: ['אישי', 'gold'], shared: ['משותף', ''], est: ['הערכה', 'est'] };
+  const cards = pc.people.map(p => {
+    const byCat = CATS.map(c => ({ c, items: p.items.filter(i => i.cat === c.id) })).filter(x => x.items.length);
+    return `<div class="card person"><div class="row"><span class="pava">${esc(p.name.slice(0, 1))}</span><div class="spacer"><b class="pname">${esc(p.name)}</b><div class="small muted">✈️ יוצא/ת מ-${esc(p.origin || '—')}</div></div>
+        <div style="text-align:end"><div class="ptotal">${fmtMoney(p.total)}</div><div class="small muted" dir="ltr">≈ ${usd(p.total)}</div></div></div>
+      <div class="pbars"><span style="flex:${p.own}" class="b-own" title="אישי"></span><span style="flex:${p.shared}" class="b-sh" title="משותף"></span><span style="flex:${p.est}" class="b-est" title="הערכה"></span></div>
+      <div class="plegend small"><span><i class="b-own"></i>אישי ${fmtMoney(p.own)}</span><span><i class="b-sh"></i>חלק במשותף ${fmtMoney(p.shared)}</span><span><i class="b-est"></i>הערכה ${fmtMoney(p.est)}</span></div>
+      <ul class="list plist">${byCat.map(({ c, items }) => items.map(i => `<li class="li"><div class="ico">${c.ico}</div><div class="main"><div class="t">${esc(i.title)}</div><div class="small muted"><span class="kchip ${KIND[i.kind][1]}">${KIND[i.kind][0]}</span>${i.full ? ` ${pc.names.length > 1 ? '1/' + pc.names.length + ' מתוך ' + fmtMoney(i.full) : ''}` : ''}${i.status && i.kind !== 'est' ? ' · ' + esc(i.status) : ''}</div></div><div style="text-align:end"><div class="amt">${fmtMoney(i.ils)}</div><div class="small muted" dir="ltr">${usd(i.ils)}</div></div></li>`).join('')).join('')}</ul></div>`;
+  }).join('');
+  const sum = pc.people.reduce((a, p) => a + p.total, 0);
+  const estRows = pc.estCats.length ? `<div class="card section"><h3>הערכות לפי קטגוריה – על מי?</h3><div class="small muted" style="margin-bottom:8px">מה שעוד לא הוזמן (התקציב פחות ההזמנות וההוצאות). בחרו אם זה מתחלק בין כולם או שייך לנוסע אחד.</div>
+      <ul class="list">${pc.estCats.map(e => { const c = catById(e.cat); return `<li class="li"><div class="ico">${c.ico}</div><div class="main"><div class="t">${c.name}</div><div class="small muted">${fmtMoney(e.rem)} נותר בתקציב</div></div>
+        <select class="pfor" data-pfor="${e.cat}"><option value="all" ${e.who === 'all' ? 'selected' : ''}>כולם (שווה)</option>${pc.names.map(n => `<option value="${esc(n)}" ${e.who === n ? 'selected' : ''}>רק ${esc(n)}</option>`).join('')}</select></li>`; }).join('')}</ul></div>` : '';
+  return `<div class="section"><div class="small muted" style="margin-bottom:8px">כל אחד רואה בדיוק מה הוא משלם: הוצאות אישיות (כמו הטיסה מנקודת היציאה שלו), החלק שלו בהוצאות המשותפות, והערכה למה שעוד לא הוזמן. סה״כ הטיול: <b>${fmtMoney(sum)}</b> (≈ <span dir="ltr">${usd(sum)}</span>).</div>
+    <div class="people-grid">${cards}</div></div>${estRows}
+    <div class="small muted section">כדי לשייך הזמנה או הוצאה לנוסע מסוים – פתחו אותה ובחרו ״עבור: רק …״. ⚖️ ״חלוקה״ מראה מי מעביר למי לפי מה ששולם בפועל.</div>`;
+}
+
 function payerFields() {
   const names = (curTrip()?.travelersList || []).map(x => x.name).filter(Boolean);
   if (names.length < 2) return [{ key: 'payer', label: 'מי שילם', placeholder: 'אופציונלי' }];
@@ -1339,8 +1397,8 @@ function splitBalances(t) {
   const paid = Object.fromEntries(names.map(n => [n, 0])); let total = 0;
   const add = (who, ils, forWhom) => { total += ils; if (who && paid[who] != null) paid[who] += ils; const share = forWhom && forWhom !== 'all' ? [forWhom] : names; share.forEach(n => owes[n] += ils / share.length); };
   const owes = Object.fromEntries(names.map(n => [n, 0]));
-  t.expenses.forEach(e => add(e.payer, toILS(t, e.amount, e.currency), e.split));
-  t.bookings.filter(b => b.status === 'paid').forEach(b => add(b.payer, toILS(t, b.price, b.currency), b.split));
+  t.expenses.forEach(e => add(e.payer, toILS(t, e.amount, e.currency), forWhom(t, e)));
+  t.bookings.filter(b => b.status === 'paid').forEach(b => add(b.payer, toILS(t, b.price, b.currency), forWhom(t, b)));
   const bal = names.map(n => ({ name: n, paid: paid[n], owes: owes[n], net: paid[n] - owes[n] }));
   // סגירת חובות במינימום העברות
   const cred = bal.filter(b => b.net > 1).map(b => ({ ...b })), debt = bal.filter(b => b.net < -1).map(b => ({ ...b, net: -b.net }));
@@ -1633,6 +1691,7 @@ function tripContext(t) {
   L.push('נוסעים: ' + (t.travelersList || []).map(x => `${x.name} (יוצא מ-${x.origin})`).join(', ') + (t.airport ? ` · שדה יעד ${t.airport}` : '') + (t.city ? ` · עיר בסיס ${t.city}` : ''));
   L.push(`שער: 1$=₪${t.rates?.USD || 3.1}. תקציב מתוכנן ₪${Math.round(tot.planned)}, שולם ₪${Math.round(tot.actual)}, מחויב ₪${Math.round(tot.committed)}.`);
   L.push('תקציב לפי קטגוריה: ' + CATS.map(c => `${c.name} ₪${t.budget?.[c.id] || 0} (בפועל ₪${Math.round(tot.byCat[c.id] || 0)})`).join(', '));
+  const pcx = personCosts(t); if (pcx) L.push('עלות לכל נוסע: ' + pcx.people.map(p => `${p.name} (מ-${p.origin}) ₪${Math.round(p.total)} = אישי ₪${Math.round(p.own)} + משותף ₪${Math.round(p.shared)} + הערכה ₪${Math.round(p.est)}`).join(' | '));
   L.push('מסלול:'); tripDays(t).forEach(d => { const x = t.days[d] || {}; L.push(`- ${d} ${x.title || ''}${x.notes ? ' [' + x.notes + ']' : ''}: ` + (x.stops || []).map(s => `${s.time} ${s.title}${s.place ? ' @ ' + s.place : ''}`).join(' | ')); });
   L.push('הזמנות:'); (t.bookings || []).forEach(b => L.push(`- ${bookType(b.type).name}: ${b.title} · ${b.provider || ''} · ${b.start || ''}${b.end ? '→' + b.end : ''} · ${b.price} ${b.currency} · ${STATUS[b.status]?.name || b.status}${b.notes ? ' · ' + b.notes.slice(0, 160) : ''}`));
   const open = (t.lists?.tasks || []).filter(x => !x.done).map(x => x.text); if (open.length) L.push('משימות פתוחות: ' + open.join('; '));
@@ -1738,10 +1797,10 @@ function aiRender() {
   aiScroll();
 }
 function aiOpen() {
-  const p = $('#aiPanel'); aiLoad(); p.hidden = false; document.body.classList.add('ai-open'); aiRender(); aiEngine();
+  const p = $('#aiPanel'); aiLoad(); p.hidden = false; document.body.classList.add('ai-open'); $('#tabAi')?.classList.add('active'); aiRender(); aiEngine();
   setTimeout(() => $('#aiInput')?.focus(), 60);
 }
-function aiClose() { $('#aiPanel').hidden = true; document.body.classList.remove('ai-open'); }
+function aiClose() { $('#aiPanel').hidden = true; document.body.classList.remove('ai-open'); $('#tabAi')?.classList.remove('active'); }
 function setupAdvisor() {
   $('#aiFab').onclick = aiOpen; $('#aiClose').onclick = aiClose;
   $('#aiClear').onclick = () => { if (AI.busy) return; AI.turns = []; aiSave(); aiRender(); };
@@ -1754,6 +1813,8 @@ function setupAdvisor() {
 
 // ---------- bind trip ----------
 function bindTrip(t) {
+  $$('[data-bvgo]').forEach(a => a.onclick = () => { state.budgetView = a.dataset.bvgo; });
+  $$('[data-pfor]').forEach(sel => sel.onchange = () => mutate(x => { x.budgetFor = { ...(x.budgetFor || {}), [sel.dataset.pfor]: sel.value }; }));
   $$('[data-iv]').forEach(b => b.onclick = () => { state.itinView = b.dataset.iv; render(); });
   $$('[data-mapday]').forEach(b => b.onclick = () => { state.mapDay = b.dataset.mapday || null; render(); });
   if ($('#tripMap')) drawMap(t);
@@ -1861,7 +1922,8 @@ async function boot() {
   readRoute();
   $('#homeBtn').onclick = () => go('#/');
   $('#userBtn').onclick = openUserMenu;
-  $$('#tabbar button').forEach(b => b.onclick = () => state.tripId && go(`#/trip/${state.tripId}/${b.dataset.tab}`));
+  $$('#tabbar button[data-tab]').forEach(b => b.onclick = () => state.tripId && go(`#/trip/${state.tripId}/${b.dataset.tab}`));
+  $('#tabAi').onclick = () => ($('#aiPanel').hidden ? aiOpen() : aiClose());
   setupAdvisor();
   render();
   if (firebaseConfig.apiKey) {
