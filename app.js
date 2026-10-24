@@ -14,9 +14,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '2.2.2';
-const APP_BUILD = '2026-10-24 20:30';
+const APP_VERSION = '2.2.3';
+const APP_BUILD = '2026-10-24 21:00';
 const CHANGELOG = [
+  ['2.2.3', '24/10/2026 21:00', ['תוקן: כפתור שמירת הפרופיל לא עבד כששער הדולר או האירו הוזן עם יותר משתי ספרות אחרי הנקודה (למשל 3.725)']],
   ['2.2.2', '24/10/2026 20:30', ['תוקן: כפתור שמירת המפתחות בהגדרות – החלון נסגר ומופיע אישור', '🌊 טיול קרמל מופיע תמיד ברשימת הטיולים בחשבון של צחי, גם אם כבר יש טיולים אחרים', 'כפתור לטעינת טיול קרמל ברשימת הטיולים כשהוא לא קיים']],
   ['2.2.1', '24/10/2026 19:50', ['תיקון: טיול קרמל נטען לחשבון בענן גם אם כבר התחברת לפני גרסה 2.1.1']],
   ['2.2.0', '24/10/2026 19:40', ['🛰️ מעקב מחירים אוטומטי בסקירת הטיול: תוצאות הבדיקה המתוזמנת, התראות וכללי המעקב']],
@@ -638,7 +639,7 @@ function renderProfile() {
     <form id="profForm" class="grid section">
       <div class="card grid"><h3 style="margin:0">פרטים</h3>
         <div class="field-row"><div class="field"><label>שם פרטי</label><input name="name" value="${esc(P.name)}" placeholder="צחי"></div><div class="field"><label>שדה תעופה בית</label><input name="home" value="${esc(P.home)}" dir="ltr" maxlength="3" style="text-transform:uppercase" placeholder="TLV"></div></div>
-        <div class="field-row"><div class="field"><label>שער דולר (₪)</label><input name="rateUSD" type="number" step="0.01" value="${esc(P.rateUSD)}"></div><div class="field"><label>שער אירו (₪)</label><input name="rateEUR" type="number" step="0.01" value="${esc(P.rateEUR)}"></div></div></div>
+        <div class="field-row"><div class="field"><label>שער דולר (₪)</label><input name="rateUSD" type="number" step="any" inputmode="decimal" value="${esc(P.rateUSD)}"></div><div class="field"><label>שער אירו (₪)</label><input name="rateEUR" type="number" step="any" inputmode="decimal" value="${esc(P.rateEUR)}"></div></div></div>
       <div class="card grid"><h3 style="margin:0">מלווים קבועים</h3><div class="small muted">בני משפחה וחברים שטסים איתך – יופיעו כבחירה מהירה בכל טיול חדש, כל אחד עם נקודת היציאה שלו.</div>
         <div id="compRows">${(P.companions || []).map((c, i) => `<div class="row trow"><input data-cname="${i}" value="${esc(c.name)}" placeholder="שם"><input data-corig="${i}" value="${esc(c.origin)}" dir="ltr" maxlength="3" style="text-transform:uppercase;width:80px"><button type="button" class="mini" data-cdel="${i}" aria-label="הסר">✕</button></div>`).join('') || '<div class="small muted">אין עדיין מלווים.</div>'}</div>
         <button type="button" class="btn sm" id="compAdd">+ מלווה</button></div>
