@@ -14,9 +14,10 @@ const $ = (s, el = document) => el.querySelector(s);
 
 // ---------- גרסה ויומן שינויים ----------
 // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
-const APP_VERSION = '2.1.1';
-const APP_BUILD = '2026-10-24 19:15';
+const APP_VERSION = '2.2.0';
+const APP_BUILD = '2026-10-24 19:40';
 const CHANGELOG = [
+  ['2.2.0', '24/10/2026 19:40', ['🛰️ מעקב מחירים אוטומטי בסקירת הטיול: תוצאות הבדיקה המתוזמנת, התראות וכללי המעקב']],
   ['2.1.1', '24/10/2026 19:15', ['🌊 טיול קרמל נטען כפרויקט הראשון בחשבון של צחי בענן', 'כפתור טיול לדוגמה בלוח הבקרה כשאין עדיין טיולים']],
   ['2.1.0', '24/10/2026 18:30', ['🌐 המערכת כולה בעברית ובאנגלית – כפתור שפה בסרגל העליון, ברירת מחדל לפי המכשיר, כיוון מימין/משמאל אוטומטי', '❓ מרכז עזרה וסיור מודרך אינטראקטיבי: הדגשה של כל יכולת במסך, הראה לי, חיפוש', '✨ מה חדש אוטומטי בכל גרסה – נבנה מרשימת היכולות, והסוכן החכם יודע לענות איך עושים']],
   ['2.0.1', '24/10/2026 17:25', ['לוגו שקוף (בלי רקע לבן), עם גרסה בהירה לטקסט במצב כהה', 'תוקנה בניית האתר ב-Netlify (סורק הסודות)']],
@@ -737,6 +738,7 @@ function renderOverview(t) {
   </div>
 
   ${renderMorning(t)}
+  ${renderMonitor(t)}
   <div class="grid grid-2 section">
     <div class="card stat"><div class="lbl">תקציב מתוכנן</div><div class="val">${fmtMoney(tot.planned)}</div><div class="small muted">${(() => { const pc = personCosts(t); return pc ? `<a href="#/trip/${t.id}/budget" data-bvgo="people">${pc.people.map(p => `${esc(p.name)} ${fmtMoney(p.total)}`).join(' · ')}</a>` : fmtMoney(tot.planned / (t.travelers || 1)) + ' לנוסע'; })()}</div></div>
     <div class="card stat"><div class="lbl">שולם עד כה</div><div class="val" style="color:${tot.actual > tot.planned && tot.planned ? 'var(--danger)' : 'var(--green)'}">${fmtMoney(tot.actual)}</div>
@@ -1937,6 +1939,31 @@ function openEmailImport(t) {
 // =====================================================================
 //  סיכום הבוקר
 // =====================================================================
+// ---------- מעקב מחירים אוטומטי (משימה מתוזמנת) – נתונים מ-monitor.json ----------
+const monitorState = { d: null, loading: false, tried: false };
+function loadMonitor() {
+  if (monitorState.loading || monitorState.tried) return; monitorState.loading = true;
+  fetch('monitor.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { monitorState.d = d; }).catch(() => { })
+    .finally(() => { monitorState.loading = false; monitorState.tried = true; if (monitorState.d && state.tab === 'overview') render(); });
+}
+function renderMonitor(t) {
+  loadMonitor(); const m = monitorState.d; if (!m?.match) return '';
+  if (m.match.start !== t.start || m.match.end !== t.end || (m.match.airport && m.match.airport !== t.airport)) return '';
+  const en = isEn(); const pick = o => (en ? o.en : o.he) || o.he || '';
+  const when = m.updated ? new Date(m.updated).toLocaleString(LOC(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+  const rows = (m.items || []).map(i => { const c = Number(i.change) || 0;
+    return `<li class="li"><div class="ico">${esc(i.icon || '•')}</div><div class="main"><div class="t">${esc(pick(i))}</div>
+      <div class="small muted"><span dir="ltr">${esc(i.base)}</span> → <b dir="ltr" style="color:${c < 0 ? 'var(--green)' : c > 0 ? 'var(--danger)' : 'inherit'}">${esc(i.now)}</b>${c ? ` <span dir="ltr">(${c < 0 ? '↓' : '↑'}$${Math.abs(c)})</span>` : ` · ${en ? 'no change' : 'ללא שינוי'}`}</div>
+      ${(en ? i.noteEn : i.noteHe) ? `<div class="small muted">${esc(en ? i.noteEn : i.noteHe)}</div>` : ''}</div>
+      ${i.link ? `<a class="btn sm" href="${esc(i.link)}" target="_blank" rel="noopener">${en ? 'Book' : 'להזמנה'}</a>` : ''}</li>`; }).join('');
+  const alerts = (m.alerts || []).map(a => `<div class="mon-alert">${esc(pick(a))}${a.link ? ` <a href="${esc(a.link)}" target="_blank" rel="noopener">${en ? 'Book' : 'להזמנה'} ←</a>` : ''}</div>`).join('');
+  const rules = (en ? m.rules?.en : m.rules?.he) || [];
+  return `<div class="card monbox section" id="monitorBox"><div class="row"><b class="spacer">🛰️ ${en ? 'Automatic price monitoring' : 'מעקב מחירים אוטומטי'}</b><span class="small muted">${en ? 'Last check' : 'בדיקה אחרונה'} ${esc(when)}</span></div>
+    ${m.summary ? `<div class="small" style="margin:6px 0">${esc(pick(m.summary))}</div>` : ''}${alerts}
+    <ul class="list">${rows}</ul>
+    ${rules.length ? `<details class="mon-rules"><summary>📋 ${en ? 'Monitoring rules' : 'כללי המעקב'}</summary><ul>${rules.map(r => `<li>${esc(r)}</li>`).join('')}</ul></details>` : ''}</div>`;
+}
+
 function renderMorning(t) {
   const today = isoDate(new Date()); const days = tripDays(t);
   const inTrip = days.includes(today); const d = inTrip ? today : days[0]; if (!d) return '';

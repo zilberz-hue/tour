@@ -1,0 +1,49 @@
+{
+  "updated": "2026-10-24T16:00:00Z",
+  "match": { "start": "2026-11-18", "end": "2026-11-23", "airport": "SFO" },
+  "summary": {
+    "he": "טיסה זולה יותר לרחל: Frontier ‏$175 במקום $227 (אותו הלוך, חזור בלילה). שאר המחירים ללא שינוי.",
+    "en": "Cheaper flight for Rachel: Frontier $175 instead of $227 (same outbound, overnight return). Everything else unchanged."
+  },
+  "alerts": [
+    {
+      "he": "💡 רחל: Frontier ‏$175 (‎↓$52, ‎-23%‎) – הלוך 07:00→11:17 זהה, חזור 23/11 23:29→05:07 (לילה), בלי מזוודה",
+      "en": "💡 Rachel: Frontier $175 (↓$52, -23%) – same 07:00→11:17 outbound, return 23/11 23:29→05:07 (overnight), no checked bag",
+      "link": "https://kiwi.com/u/dfubvw"
+    }
+  ],
+  "items": [
+    { "icon": "✈️", "he": "צחי: TLV ⇄ SFO", "en": "Tzachi: TLV ⇄ SFO", "base": "€957", "now": "€957", "change": 0,
+      "noteHe": "Iberia/BA, 2 עצירות. KLM ‏$1,067 לא אומת בבדיקה האחרונה", "noteEn": "Iberia/BA, 2 stops. KLM $1,067 not verified in last check",
+      "link": "https://www.lastminute.ie/msr/route/searching.do?departureAirport=TLV&arrivalAirport=SFO&outboundDay=18&outboundMonthYear=112026&returnDay=23&returnMonthYear=112026&adults=1&roundtrip=true" },
+    { "icon": "✈️", "he": "רחל: DFW ⇄ SFO", "en": "Rachel: DFW ⇄ SFO", "base": "$227", "now": "$175", "change": -52,
+      "noteHe": "חזור בלילה 23:29 · המסלול המקורי (חזור 11:27) עדיין $226", "noteEn": "Overnight return 23:29 · original itinerary (11:27 return) still $226",
+      "link": "https://kiwi.com/u/dfubvw" },
+    { "icon": "🏨", "he": "Briarwood Inn · קרמל (4 לילות)", "en": "Briarwood Inn · Carmel (4 nights)", "base": "$1,019", "now": "$1,019", "change": 0,
+      "noteHe": "Carmel Resort Inn ‏$916 · Comfort Inn ‏$1,040", "noteEn": "Carmel Resort Inn $916 · Comfort Inn $1,040",
+      "link": "https://www.booking.com/hotel/us/briarwood-inn.html?checkin=2026-11-19&checkout=2026-11-23&group_adults=2" },
+    { "icon": "🏨", "he": "Harbor View Inn · האף מון ביי", "en": "Harbor View Inn · Half Moon Bay", "base": "$175", "now": "$175", "change": 0,
+      "noteHe": "Miramar Inn ‏$150 · Half Moon Bay Lodge ‏$189 (8.4)", "noteEn": "Miramar Inn $150 · Half Moon Bay Lodge $189 (8.4)",
+      "link": "https://www.booking.com/hotel/us/harbor-view-inn.html?checkin=2026-11-18&checkout=2026-11-19&group_adults=2" }
+  ],
+  "rules": {
+    "he": [
+      "בודקים: טיסת צחי TLV⇄SFO, טיסת רחל DFW⇄SFO (18/11–23/11), מלון בכרמל 19/11–23/11, מלון בהאף מון ביי 18/11–19/11",
+      "מקורות: Kiwi.com, lastminute.com, Booking.com (ו-Expedia אם מחובר)",
+      "בסיס (24/10): KLM ‏$1,067 · BA ‏€1,065 · Iberia/BA ‏€957 · Frontier ‏$227 · Briarwood ‏$1,019 · Carmel Resort Inn ‏$916 · Comfort Inn ‏$1,040 · Harbor View ‏$175 · Miramar ‏$150",
+      "📉 התראה על ירידה של 5% ומעלה, או אפשרות חדשה שזולה או משתלמת יותר בבירור",
+      "בהשוואה מתחשבים במזוודה כלולה, במספר העצירות ובנחיתה בסביבות 11:00–13:00 ב-18/11, כדי ששניכם תיפגשו ב-SFO",
+      "אין שינוי משמעותי – אין התראה",
+      "לא מזמינים כלום. מ-18/11 המעקב נעצר"
+    ],
+    "en": [
+      "Checks: Tzachi TLV⇄SFO, Rachel DFW⇄SFO (18/11–23/11), Carmel hotel 19/11–23/11, Half Moon Bay hotel 18/11–19/11",
+      "Sources: Kiwi.com, lastminute.com, Booking.com (and Expedia if connected)",
+      "Baseline (24/10): KLM $1,067 · BA €1,065 · Iberia/BA €957 · Frontier $227 · Briarwood $1,019 · Carmel Resort Inn $916 · Comfort Inn $1,040 · Harbor View $175 · Miramar $150",
+      "📉 Alert on a drop of 5% or more, or a new option that is clearly cheaper or better value",
+      "Comparison considers included bags, number of stops and landing around 11:00–13:00 on 18/11 so you both meet at SFO",
+      "No meaningful change – no alert",
+      "Nothing is booked. Monitoring stops from 18/11"
+    ]
+  }
+}

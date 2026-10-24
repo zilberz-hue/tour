@@ -1,5 +1,6 @@
 // מילון עברית → English (נוצר מתוך כל טקסטי הממשק). מוסיפים טקסט חדש בממשק → מוסיפים כאן שורה.
 export default {
+"🛰️ מעקב מחירים אוטומטי בסקירת הטיול: תוצאות הבדיקה המתוזמנת, התראות וכללי המעקב": "🛰️ Automatic price monitoring in the trip overview: scheduled-check results, alerts and monitoring rules",
 "$ דולר": "$ Dollar",
 ". טיול": ". Trip",
 ". תקציב מתוכנן ₪": ". Planned budget ₪",
