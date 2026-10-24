@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14130f">
+<title>Tizon Tour</title>
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <button class="brand" id="homeBtn" aria-label="לכל הטיולים">
+    <img src="logo.svg" alt="" class="brand-mark">
+    <span class="brand-text"><b>Tizon</b>Tour</span>
+  </button>
+  <div class="topbar-actions">
+    <span class="mode-pill" id="modePill"></span>
+    <button class="icon-btn" id="userBtn" aria-label="חשבון">👤</button>
+  </div>
+</header>
+
+<main id="app" class="app"></main>
+
+<nav class="tabbar" id="tabbar" hidden>
+  <button data-tab="overview"><span>🏠</span>סקירה</button>
+  <button data-tab="itinerary"><span>🗺️</span>מסלול</button>
+  <button data-tab="guide"><span>🎧</span>מדריך</button>
+  <button data-tab="search"><span>🔎</span>חיפוש</button>
+  <button data-tab="budget"><span>💰</span>תקציב</button>
+  <button data-tab="bookings"><span>🎫</span>הזמנות</button>
+  <button data-tab="checklist"><span>✅</span>רשימות</button>
+</nav>
+
+<dialog id="modal" class="modal">
+  <form method="dialog" id="modalForm" class="modal-card">
+    <h3 id="modalTitle"></h3>
+    <div id="modalBody" class="modal-body"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn danger" id="modalDelete" hidden>מחיקה</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" id="modalCancel">ביטול</button>
+      <button type="submit" class="btn primary" id="modalSave">שמירה</button>
+    </div>
+  </form>
+</dialog>
+
+<button class="ai-fab" id="aiFab" hidden aria-label="יועץ AI"><span>🤖</span><b>יועץ AI</b></button>
+<section class="ai-panel" id="aiPanel" hidden aria-label="יועץ AI">
+  <header class="ai-head"><span class="ai-ava">🤖</span><div class="spacer"><b>יועץ AI · אונליין</b><div class="small muted"><span class="ai-on"></span> מכיר את כל הטיול שלך</div></div>
+    <button class="mini" id="aiClear" aria-label="שיחה חדשה" title="שיחה חדשה">🗑️</button><button class="mini" id="aiClose" aria-label="סגירה">✕</button></header>
+  <div class="ai-msgs" id="aiMsgs"></div>
+  <div class="ai-sug" id="aiSug"></div>
+  <form class="ai-form" id="aiForm"><button type="button" class="mini" id="aiMic" aria-label="דיבור">🎤</button>
+    <input id="aiInput" autocomplete="off" placeholder="שאלו כל דבר על הטיול…" enterkeyhint="send">
+    <button class="btn green" id="aiSend" type="submit">שלח</button><button class="btn" id="aiStop" type="button" hidden>עצור</button></form>
+</section>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
