@@ -128,8 +128,10 @@ const PROVIDERS = {
 export default async (req) => {
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405);
   let b; try { b = await req.json(); } catch { return json({ error: 'bad body' }, 400); }
-  const kind = b.kind; const list = PROVIDERS[kind];
-  if (!list) return json({ error: 'סוג חיפוש לא נתמך בחיפוש חי' }, 400);
+  const kind = b.kind; const all = PROVIDERS[kind];
+  // only = שם ספק אחד (לבדיקה חיה ספק-אחר-ספק עם חיווי לכל מנוע)
+  const list = all && b.only ? all.filter(([n]) => n === b.only) : all;
+  if (!list || !list.length) return json({ error: 'סוג חיפוש לא נתמך בחיפוש חי' }, 400);
   let q;
   if (kind === 'flights') {
     q = { from: iata(b.from), to: iata(b.to), depart: b.depart, ret: isDate(b.ret) ? b.ret : '', adults: Math.min(9, Math.max(1, +b.adults || 1)), cabin: ['economy', 'premium_economy', 'business', 'first'].includes(b.cabin) ? b.cabin : 'economy' };

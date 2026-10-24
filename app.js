@@ -7,6 +7,33 @@ import { firebaseConfig } from './firebase-config.js';
 const FB_VER = '10.12.2';
 const LS_KEY = 'tizon-tour-v5';
 const $ = (s, el = document) => el.querySelector(s);
+
+// ---------- גרסה ויומן שינויים ----------
+// לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
+const APP_VERSION = '1.9.0';
+const APP_BUILD = '2026-10-24 15:20';
+const CHANGELOG = [
+  ['1.9.0', '24/10/2026 15:20', ['בדיקת מחירים חיה: חיווי לכל מנוע בנפרד (Duffel, Google Flights, Aviasales, Google Hotels) והתוצאות נפתחות אוטומטית', 'בדיקה אוטומטית לפי מרווח לבחירה: 10 דק׳, רבע שעה, חצי שעה, שעה, 3 או 6 שעות, או כל מספר דקות', '"סוכן חכם" (במקום "יועץ AI") – לשונית קטנה בקצה המסך שלא מפריעה', 'מספר גרסה ו"מה חדש"']],
+  ['1.8.1', '24/10/2026 15:07', ['תוקן: כפתור ⚙️ הגדרות לא נפתח', 'פונטים גדולים יותר', 'תצוגה מותאמת לטלפון, טאבלט ומחשב (סרגל צד במחשב)']],
+  ['1.8.0', '24/10/2026 15:00', ['ערכת צבע בהירה + בחירה: כהה / בהיר / אוטומטי לפי המכשיר']],
+  ['1.7.1', '24/10/2026 12:45', ['תוקן: הבהוב וריצוד של המסך (לולאת בדיקת מחירים)']],
+  ['1.7.0', '24/10/2026 08:16', ['יועץ AI אונליין שמכיר את כל הטיול, מחפש מחירים ומוסיף למסלול']],
+  ['1.6.0', '24/10/2026 02:30', ['השוואת תאריכים ±3 ימים לטיסות ולמלונות']],
+  ['1.5.0', '24/10/2026', ['מפה, מזג אוויר, חלוקת הוצאות, התראות מחיר, אופליין, ייבוא מהמייל, סיכום בוקר, Uber / Lyft / Waze']],
+  ['1.4.0', '23/10/2026', ['מועדפים, מזוודות כלולות/לא כלולות, חוות דעת']],
+  ['1.3.0', '23/10/2026', ['מדריך קולי עם קריין, מקומות ושירותים קרובים']],
+  ['1.2.0', '23/10/2026', ['חיפוש חי בכל הספקים במקביל, השוואה אמיתית (הכי זול / הכי משתלם), כל האתרים בעברית']],
+  ['1.0.0', '23/10/2026', ['גרסה ראשונה: מסלול, תקציב, הזמנות, רשימות, טיול קרמל']]
+];
+function openChangelog() {
+  const dlg = $('#modal'); $('#modalTitle').textContent = `מה חדש · גרסה ${APP_VERSION}`;
+  $('#modalBody').innerHTML = `<div class="small muted" style="margin-bottom:10px">עודכן לאחרונה: ${APP_BUILD.split(' ')[0].split('-').reverse().join('/')} בשעה ${APP_BUILD.split(' ')[1]}</div>` +
+    CHANGELOG.map(([v, d, items], i) => `<div class="cl-item ${i === 0 ? 'cur' : ''}"><div class="row"><b>גרסה ${v}</b>${i === 0 ? '<span class="chip ok">נוכחית</span>' : ''}<span class="spacer"></span><span class="small muted">${d}</span></div><ul>${items.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('');
+  $('#modalDelete').hidden = true; $('#modalSave').textContent = 'סגירה';
+  $('#modalCancel').onclick = () => dlg.close(); $('#modalForm').onsubmit = e => { e.preventDefault(); dlg.close(); };
+  dlg.showModal();
+}
+
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
 // ---------- utils ----------
@@ -1054,7 +1081,6 @@ const linkGrid = links => `<div class="linkgrid">${links.map(l => { const x = he
 function renderSearch(t) {
   const k = hubState.kind;
   const seg = `<div class="kinds">${KINDS.map(x => `<button data-kind="${x.id}" class="${x.id === k ? 'active' : ''}"><span>${x.ico}</span>${x.name}</button>`).join('')}</div>`;
-  if (k === 'flights' || k === 'hotels') setTimeout(() => checkWatches(false), 50);
   if (k === 'flights') return `${seg}${renderWatches(t)}<div style="height:12px"></div>` + renderFlights(t).replace('<div class="section-head"><h1>חיפוש טיסות</h1></div>', '');
   const f = hubState.forms[k] ||= hubDefaults(t, k);
   const fld = (n, l, type = 'text', extra = '') => `<div class="field"><label>${l}</label><input name="${n}" type="${type}" value="${esc(f[n])}" ${extra}></div>`;
@@ -1351,41 +1377,127 @@ async function toggleWatch(id) {
   toast(on ? 'הוסר מהמעקב' : '🔔 נעקוב ונתריע כשהמחיר יורד');
 }
 function notify(title, body) { try { if ('Notification' in window && Notification.permission === 'granted') new Notification(title, { body, icon: 'logo.svg' }); } catch (e) { } toast(title + ' – ' + body); }
-let watchBusy = false;
-async function checkWatches(force = false) {
-  const t = curTrip(); if (!t || watchBusy || !(t.watch || []).length) return;
-  // בדיקה אוטומטית לכל היותר פעם ב-30 דקות בסשן – גם אם נכשלה (מונע לולאת רינדור)
-  if (!force) { if (Date.now() - (window.__watchTry || 0) < 30 * 60e3) return; }
-  window.__watchTry = Date.now();
-  const due = t.watch.filter(w => force || Date.now() - (w.checked || 0) > WATCH_EVERY); if (!due.length) return;
-  watchBusy = true; state.watchMsg = 'בודק מחירים…'; render();
-  const updates = {}; let err = '';
-  for (const w of due) {
+// ---- בדיקה חיה: כל מנוע בנפרד, עם חיווי, ואז פתיחת התוצאות ----
+const WATCH_PROVIDERS = { flight: ['Duffel', 'Google Flights', 'Aviasales'], hotel: ['Google Hotels'] };
+const PROV_ICO = { 'Duffel': '🛫', 'Google Flights': '🟢', 'Aviasales': '🔶', 'Google Hotels': '🏨' };
+const WATCH_INTERVALS = [[0, 'כבוי'], [10, '10 דק׳'], [15, 'רבע שעה'], [30, 'חצי שעה'], [60, 'שעה'], [180, '3 שעות'], [360, '6 שעות']];
+const watchRun = { busy: false, done: false, rows: [], last: 0 };
+const watchEvery = t => (t?.watchEvery ?? 15);
+const everyLabel = m => (WATCH_INTERVALS.find(x => x[0] === m) || [m, `${m} דק׳`])[1];
+function nextCheckIn(t) {
+  const ev = watchEvery(t); if (!ev || !(t?.watch || []).length) return null;
+  const lastChecked = Math.max(watchRun.last, ...(t.watch || []).map(w => w.checked || 0));
+  return Math.max(0, lastChecked + ev * 60e3 - Date.now());
+}
+const fmtLeft = ms => { const s = Math.round(ms / 1000); if (s >= 3600) { const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return `${h} ש׳${m ? ' ו-' + m + ' דק׳' : ''}`; } if (s >= 60) return `${Math.ceil(s / 60)} דק׳`; return `${s} שנ׳`; };
+
+async function checkWatches({ show = false } = {}) {
+  const t = curTrip(); if (!t || watchRun.busy || !(t.watch || []).length) { if (show && watchRun.busy) openWatchPanel(); return; }
+  watchRun.busy = true; watchRun.done = false; watchRun.last = Date.now();
+  watchRun.rows = t.watch.map(w => ({ w, provs: (WATCH_PROVIDERS[w.kind] || []).map(name => ({ name, st: 'run', count: 0, note: '' })), results: [], out: null }));
+  if (show) openWatchPanel(); else drawWatchPanel();
+  const jobs = watchRun.rows.flatMap(row => row.provs.map(async pv => {
     try {
-      const j = await searchAll({ kind: w.kind === 'flight' ? 'flights' : 'hotels', ...w.query });
-      const res = j.results || []; if (!res.length) continue;
-      const same = res.find(o => watchKey(w.kind, o) === w.key);
-      const cand = same || null;
-      const ils = cand ? Math.round(toILS(t, w.kind === 'flight' ? cand.total : (cand.total || cand.perNight), cand.currency)) : null;
-      const cheapest = Math.round(Math.min(...res.map(o => toILS(t, w.kind === 'flight' ? o.total : (o.total || o.perNight), o.currency))));
-      updates[w.id] = { ils, cheapest };
-    } catch (e) { err = e.message; break; }
+      const j = await searchAll({ kind: row.w.kind === 'flight' ? 'flights' : 'hotels', ...row.w.query, only: pv.name });
+      const pr = (j.providers || [])[0] || {}; pv.st = pr.status === 'ok' ? 'ok' : pr.status === 'off' ? 'off' : 'err'; pv.count = pr.count || 0; pv.note = pr.note || '';
+      row.results.push(...(j.results || []));
+    } catch (e) { pv.st = 'err'; pv.note = e.message; }
+    drawWatchPanel();
+  }));
+  await Promise.all(jobs);
+  // סיכום לכל פריט במעקב
+  const updates = {}; let dropped = false;
+  for (const row of watchRun.rows) {
+    const w = row.w; const res = row.results;
+    if (!res.length) { row.out = { none: true, why: row.provs.find(p => p.note)?.note || '' }; continue; }
+    let list;
+    if (w.kind === 'flight') list = compareFlights(t, res).map(o => ({ key: watchKey('flight', o), name: o.owner, ils: Math.round(o.ils), ilsBag: Math.round(o.ilsBag), sub: `${(o.slices || []).map(sl => (sl.segments || []).length - 1).map(n => n === 0 ? 'ישירה' : n === 1 ? 'עצירה אחת' : n + ' עצירות').join(' / ')}${o.info?.checked ? ' · כולל מזוודה' : ''}`, link: o.link || '', src: o.source }));
+    else list = res.map(o => ({ key: watchKey('hotel', o), name: o.name, ils: Math.round(toILS(t, o.total || o.perNight, o.currency)), sub: `${o.rating ? '★ ' + o.rating : ''}${o.reviews ? ' · ' + o.reviews + ' ביקורות' : ''}`, link: o.link || '', src: o.source }));
+    list.sort((a, b) => a.ils - b.ils);
+    const same = list.find(o => o.key === w.key);
+    const cur = same ? same.ils : null; const cheapest = list[0].ils;
+    updates[w.id] = { ils: cur, cheapest };
+    if (cur != null && cur < w.last - 20) dropped = true;
+    row.out = { cur, prev: w.last, base: w.base, cheapest, top: list.slice(0, 3), total: list.length };
   }
   if (Object.keys(updates).length) await mutate(x => (x.watch || []).forEach(w => {
     const u = updates[w.id]; if (!u) return; w.checked = Date.now(); w.cheapest = u.cheapest;
     if (u.ils != null) { if (u.ils < w.last - 20) notify('📉 המחיר ירד!', `${w.label}: ${fmtMoney(u.ils)} (היה ${fmtMoney(w.last)})`); w.last = u.ils; w.history = [...(w.history || []), { t: Date.now(), ils: u.ils }].slice(-30); }
   }));
-  watchBusy = false; state.watchMsg = err ? 'בדיקת מחירים חיה תעבוד אחרי פריסה עם מפתחות (README)' : ''; render();
+  watchRun.busy = false; watchRun.done = true;
+  if (dropped && !show) openWatchPanel(); else drawWatchPanel();
+  if (!$('#watchPanel')) render();
 }
+
+function openWatchPanel() {
+  let el = $('#watchPanel');
+  if (!el) { el = document.createElement('div'); el.id = 'watchPanel'; el.className = 'wp-wrap'; el.innerHTML = `<div class="wp card" role="dialog" aria-label="בדיקת מחירים"><div id="wpInner"></div></div>`; document.body.appendChild(el);
+    el.addEventListener('click', e => { if (e.target === el) closeWatchPanel(); }); }
+  drawWatchPanel();
+}
+function closeWatchPanel() { $('#watchPanel')?.remove(); render(); }
+function drawWatchPanel() {
+  const box = $('#wpInner'); if (!box) return; const t = curTrip(); if (!t) return;
+  const R = watchRun.rows; const all = R.flatMap(r => r.provs); const doneN = all.filter(p => p.st !== 'run').length;
+  const pct = all.length ? Math.round(doneN / all.length * 100) : 0;
+  const head = watchRun.busy
+    ? `<div class="wp-head"><div class="wp-radar"><i></i><i></i><i></i><span>🔎</span></div><div class="spacer"><b>בודק עכשיו בכל המנועים באונליין…</b><div class="small muted">${doneN}/${all.length} מנועים החזירו תשובה</div></div><button class="mini" data-wpclose aria-label="סגירה">✕</button></div>
+       <div class="bar gold wp-bar"><i style="width:${Math.max(6, pct)}%"></i></div>`
+    : `<div class="wp-head"><span class="wp-done">✓</span><div class="spacer"><b>הבדיקה הסתיימה</b><div class="small muted">נבדק עכשיו · ${new Date(watchRun.last).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}</div></div><button class="mini" data-wpclose aria-label="סגירה">✕</button></div>`;
+  const stIco = { run: '<span class="spin"></span>', ok: '✓', off: '○', err: '⚠' };
+  const stTxt = p => p.st === 'run' ? 'בודק…' : p.st === 'ok' ? `${p.count} תוצאות` : p.st === 'off' ? 'לא מחובר' : 'לא זמין';
+  const body = R.map(r => {
+    const w = r.w; const o = r.out;
+    const provs = `<div class="wp-provs">${r.provs.map(p => `<span class="wp-prov ${p.st}" title="${esc(p.note)}">${stIco[p.st]} ${PROV_ICO[p.name] || ''} ${esc(p.name)} <small>${stTxt(p)}</small></span>`).join('')}</div>`;
+    let res = '';
+    if (o?.none) {
+      const links = (w.kind === 'flight' ? flightLinks(w.query) : hubLinks('hotels', w.query)).slice(0, 3);
+      res = `<div class="wp-none">לא התקבלו מחירים חיים${/פריסה|Netlify/.test(o.why) ? ' – החיפוש החי יעבוד אחרי פריסה ל-Netlify עם מפתחות הספקים' : o.why ? ' – ' + esc(o.why) : ''}.<div class="row wrap" style="margin-top:8px">${links.map(l => `<a class="btn sm" href="${esc(heLink(l.url).url)}" target="_blank" rel="noopener">${l.ico} ${esc(l.name)} ↗</a>`).join('')}</div></div>`;
+    } else if (o) {
+      const d = o.cur != null ? o.cur - o.prev : null;
+      const verdict = o.cur == null ? `<span class="chip">ההצעה המקורית לא נמצאה עכשיו</span>` : d < -20 ? `<span class="chip ok">📉 ירד ב-${fmtMoney(-d)}</span>` : d > 20 ? `<span class="chip warn">📈 עלה ב-${fmtMoney(d)}</span>` : `<span class="chip">ללא שינוי</span>`;
+      res = `<div class="wp-price"><div><div class="small muted">המחיר שלך עכשיו</div><b>${o.cur != null ? fmtMoney(o.cur) : '—'}</b> ${verdict}</div>
+          <div class="small muted" style="text-align:end">התחלה ${fmtMoney(o.base)}<br>הזול בשוק <b style="color:var(--green)">${fmtMoney(o.cheapest)}</b></div></div>
+        <ol class="wp-top">${o.top.map((x, i) => `<li><span class="wp-rank">${i === 0 ? '💰' : i + 1}</span><div class="spacer"><b>${esc(x.name)}</b><div class="small muted">${esc(x.sub)}${x.src ? ' · ' + esc(x.src) : ''}</div></div><b dir="ltr">${fmtMoney(x.ils)}</b>${x.link ? `<a class="mini" href="${esc(heLink(x.link).url)}" target="_blank" rel="noopener" aria-label="פתח">↗</a>` : ''}</li>`).join('')}</ol>
+        <button class="btn sm" data-wpall="${w.id}" style="width:100%">🔎 כל ${o.total} התוצאות בהשוואה המלאה</button>`;
+    }
+    return `<div class="wp-item"><div class="row"><span>${w.kind === 'flight' ? '✈️' : '🏨'}</span><b class="spacer">${esc(w.label)}</b></div>${provs}${res}</div>`;
+  }).join('');
+  const ev = watchEvery(t); const left = nextCheckIn(t);
+  const foot = `<div class="wp-foot"><div class="small muted" style="margin-bottom:6px">🔁 בדיקה אוטומטית ${ev ? `כל <b>${everyLabel(ev)}</b>${left != null && !watchRun.busy ? ` · הבאה בעוד <b id="wpLeft">${fmtLeft(left)}</b>` : ''}` : 'כבויה'}</div>
+    <div class="wp-every">${WATCH_INTERVALS.map(([m, l]) => `<button class="chip ${m === ev ? 'on' : ''}" data-wevery="${m}">${l}</button>`).join('')}<label class="chip wp-custom">אחר <input type="number" min="5" max="1440" step="5" inputmode="numeric" placeholder="דק׳" data-wcustom value="${WATCH_INTERVALS.some(x => x[0] === ev) ? '' : ev}"></label></div>
+    ${watchRun.busy ? '' : `<button class="btn green" data-wpagain style="width:100%;margin-top:10px">🔄 בדוק שוב עכשיו</button>`}</div>`;
+  box.innerHTML = head + `<div class="wp-body">${body}</div>` + foot;
+  bindWatchControls(box);
+  box.querySelectorAll('[data-wpclose]').forEach(b => b.onclick = closeWatchPanel);
+  box.querySelector('[data-wpagain]')?.addEventListener('click', () => checkWatches({ show: true }));
+  box.querySelectorAll('[data-wpall]').forEach(b => b.onclick = () => {
+    const w = curTrip().watch.find(x => x.id === b.dataset.wpall); if (!w) return; closeWatchPanel();
+    if (w.kind === 'flight') { hubState.kind = 'flights'; flightState.form = { ...defaultFlightForm(curTrip()), ...w.query }; go(`#/trip/${state.tripId}/search`); liveFlightSearch().then(() => $('#liveBox')?.scrollIntoView({ behavior: 'smooth' })); }
+    else { hubState.kind = 'hotels'; hubState.forms.hotels = { ...(hubState.forms.hotels || {}), ...w.query }; go(`#/trip/${state.tripId}/search`); setTimeout(() => $('#hubLive')?.click(), 80); }
+  });
+}
+function bindWatchControls(root) {
+  const setEvery = async m => { m = Math.max(0, Math.min(1440, Math.round(+m || 0))); if (m && m < 5) m = 5; await mutate(x => { x.watchEvery = m; }); toast(m ? `🔁 בדיקה אוטומטית כל ${everyLabel(m)}` : 'בדיקה אוטומטית כבויה'); drawWatchPanel(); };
+  root.querySelectorAll('[data-wevery]').forEach(b => b.onclick = () => setEvery(+b.dataset.wevery));
+  root.querySelectorAll('[data-wcustom]').forEach(i => i.onchange = () => i.value && setEvery(i.value));
+}
+// טיימר: בדיקה אוטומטית לפי המרווח שנבחר + ספירה לאחור
+setInterval(() => {
+  const t = curTrip(); if (!t) return;
+  const left = nextCheckIn(t);
+  if (left != null) { const txt = fmtLeft(left); $$('#wpLeft,#wNext').forEach(e => e.textContent = txt); }
+  if (left === 0 && !watchRun.busy && Date.now() - watchRun.last > 60e3) checkWatches({ show: false });
+}, 1000);
 const spark = h => { if (!h || h.length < 2) return ''; const v = h.map(x => x.ils), mn = Math.min(...v), mx = Math.max(...v), W = 80, H = 22; const pts = v.map((y, i) => `${(i / (v.length - 1)) * W},${H - (mx === mn ? H / 2 : ((y - mn) / (mx - mn)) * (H - 4) + 2)}`).join(' '); return `<svg width="${W}" height="${H}" class="spark"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2"/></svg>`; };
 function renderWatches(t) {
   const ws = t.watch || []; if (!ws.length) return '';
-  return `<div class="card watchbox"><div class="row"><b class="spacer">🔔 מחירים במעקב (${ws.length})</b><button class="btn sm" id="checkNow">🔄 בדוק עכשיו</button></div>
-    ${state.watchMsg ? `<div class="small muted" style="margin-top:4px">${esc(state.watchMsg)}</div>` : ''}
+  return `<div class="card watchbox"><div class="row"><b class="spacer">🔔 מחירים במעקב (${ws.length})</b><button class="btn sm green" id="checkNow">${watchRun.busy ? '<span class="spin"></span> בודק…' : '🔄 בדוק עכשיו'}</button></div>
     <ul class="list">${ws.map(w => { const d = w.last - w.base; return `<li class="li"><div class="ico">${w.kind === 'flight' ? '✈️' : '🏨'}</div><div class="main"><div class="t">${esc(w.label)}</div>
       <div class="small muted">התחלה ${fmtMoney(w.base)} · עכשיו <b style="color:${d < 0 ? 'var(--green)' : d > 0 ? 'var(--danger)' : 'inherit'}">${fmtMoney(w.last)}</b>${d ? ` (${d < 0 ? '↓' : '↑'}${fmtMoney(Math.abs(d))})` : ''}${w.cheapest && w.cheapest < w.last ? ` · הזול בשוק ${fmtMoney(w.cheapest)}` : ''} · נבדק ${w.checked ? new Date(w.checked).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</div></div>
       <span class="${d <= 0 ? 'yes' : 'no'}">${spark(w.history)}</span><button class="mini" data-unwatch="${w.id}" aria-label="הסר">✕</button></li>`; }).join('')}</ul>
-    <div class="small muted">האפליקציה בודקת מחדש כל 6 שעות כשהיא פתוחה, ומתריעה כשמחיר יורד.</div></div>`;
+    <div class="wp-foot" style="border:0;padding:8px 0 0"><div class="small muted" style="margin-bottom:6px">🔁 בדיקה אוטומטית ${watchEvery(t) ? `כל <b>${everyLabel(watchEvery(t))}</b> כשהאפליקציה פתוחה · הבאה בעוד <b id="wNext">${fmtLeft(nextCheckIn(t) || 0)}</b>` : 'כבויה'} · התראה כשמחיר יורד</div>
+    <div class="wp-every">${WATCH_INTERVALS.map(([m, l]) => `<button class="chip ${m === watchEvery(t) ? 'on' : ''}" data-wevery="${m}">${l}</button>`).join('')}<label class="chip wp-custom">אחר <input type="number" min="5" max="1440" step="5" inputmode="numeric" placeholder="דק׳" data-wcustom value="${WATCH_INTERVALS.some(x => x[0] === watchEvery(t)) ? '' : watchEvery(t)}"></label></div></div></div>`;
 }
 
 // =====================================================================
@@ -1499,7 +1611,7 @@ function renderFlex(kind) {
 
 
 // =====================================================================
-//  🤖 יועץ AI אונליין – מכיר את כל הטיול, מחפש מחירים חיים ומוסיף למסלול
+//  🤖 סוכן חכם אונליין – מכיר את כל הטיול, מחפש מחירים חיים ומוסיף למסלול
 //  מנוע 1: בתוך Claude (artifact) – דרך claude.use('sample'), על חשבון הצופה
 //  מנוע 2: ב-Netlify – פונקציה advisor.mjs עם ANTHROPIC_API_KEY
 // =====================================================================
@@ -1528,7 +1640,7 @@ function tripContext(t) {
   const wx = wxState[t.id + t.start + t.end]; if (wx?.days) L.push(`מזג אוויר (${wx.mode === 'forecast' ? 'תחזית' : 'אותם תאריכים בשנה שעברה'}): ` + Object.entries(wx.days).map(([d, w]) => `${d} ${w.tmax}°/${w.tmin}° שקיעה ${w.sunset}${w.rain ? (wx.mode === 'forecast' ? ' סיכוי גשם ' + w.rain + '%' : ' גשם ' + w.rain + 'מ״מ') : ''}`).join(', '));
   return L.join('\n');
 }
-const AI_RULES = `אתה "היועץ של Tizon Tour" – יועץ טיולים אישי, חכם וחם. ענה תמיד בעברית, קצר וברור (עד ~150 מילים אלא אם ביקשו יותר), עם רשימות קצרות כשמתאים.
+const AI_RULES = `אתה "הסוכן החכם של Tizon Tour" – סוכן טיולים אישי, חכם וחם. ענה תמיד בעברית, קצר וברור (עד ~150 מילים אלא אם ביקשו יותר), עם רשימות קצרות כשמתאים.
 יש לך את כל נתוני הטיול למטה – השתמש בהם (תאריכים, שעות, מלונות, תקציב). המלץ באופן קונקרטי: שם מקום, שעה, מחיר משוער, למה.
 כשמבקשים מחירים עדכניים – השתמש בכלי search_live. כשהמשתמש מבקש להוסיף משהו – השתמש בכלים add_stop / add_task / add_expense ואמור מה הוספת. אל תוסיף בלי שביקשו.
 אם כלי נכשל – אמור זאת בכנות והצע קישור חיפוש (Google Maps / Skyscanner / Booking). מחירים שאינם מהכלים – ציין שהם משוערים. אל תמציא קודי הזמנה או מחירים מדויקים.`;
@@ -1566,7 +1678,7 @@ async function aiNetlify(t, system, turns, onText) {
   for (let round = 0; round < 6; round++) {
     let r; try { r = await fetch('/.netlify/functions/advisor', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AI.ctl?.signal, body: JSON.stringify({ system, messages: msgs, tools: tools.map(x => ({ name: x.name, description: x.description, input_schema: x.inputSchema })) }) }); }
     catch (e) { if (e.name === 'AbortError') throw { code: 'cancelled' }; throw new Error('אין חיבור לשרת'); }
-    if (r.status === 404) throw new Error('היועץ יעבוד אחרי פריסה ל-Netlify עם הפונקציה advisor ומפתח ANTHROPIC_API_KEY (הסבר ב-README), או בתוך Claude.');
+    if (r.status === 404) throw new Error('הסוכן החכם יעבוד אחרי פריסה ל-Netlify עם הפונקציה advisor ומפתח ANTHROPIC_API_KEY (הסבר ב-README), או בתוך Claude.');
     const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error?.message || j.error || ('שגיאה ' + r.status));
     const text = (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n'); if (text) { out += (out ? '\n\n' : '') + text; onText(out); }
     const uses = (j.content || []).filter(c => c.type === 'tool_use'); if (!uses.length || j.stop_reason !== 'tool_use') return out;
@@ -1597,7 +1709,7 @@ async function aiAsk(text) {
   } catch (e) {
     const code = e?.code; const partial = e?.text;
     if (code !== 'cancelled') {
-      const msg = { not_granted: 'צריך לאשר ל-Tizon Tour להשתמש ב-Claude כדי שהיועץ יעבוד.', sampling_disabled: 'Claude לא זמין בחשבון הזה.', rate_limited: 'יותר מדי שאלות ברצף – נסו שוב בעוד דקה.', session_expired: 'צריך להתחבר מחדש ל-Claude.', refused: 'לא יכול לענות על זה – נסו לנסח אחרת.' }[code] || e?.message || 'משהו השתבש – נסו שוב.';
+      const msg = { not_granted: 'צריך לאשר ל-Tizon Tour להשתמש ב-Claude כדי שהסוכן החכם יעבוד.', sampling_disabled: 'Claude לא זמין בחשבון הזה.', rate_limited: 'יותר מדי שאלות ברצף – נסו שוב בעוד דקה.', session_expired: 'צריך להתחבר מחדש ל-Claude.', refused: 'לא יכול לענות על זה – נסו לנסח אחרת.' }[code] || e?.message || 'משהו השתבש – נסו שוב.';
       AI.turns.push({ role: 'assistant', content: (partial ? partial + '\n\n' : '') + '⚠️ ' + msg, notes: AI.notes, err: true });
     } else if (partial) AI.turns.push({ role: 'assistant', content: partial + ' …', notes: AI.notes });
   } finally { AI.busy = false; AI.ctl = null; aiSave(); aiRender(); }
@@ -1616,7 +1728,7 @@ const AI_SUGGEST = ['מה חסר לי בתכנון?', 'איפה כדאי לאכ�
 function aiRender() {
   const box = $('#aiMsgs'); if (!box) return;
   const t = curTrip();
-  box.innerHTML = (AI.turns.length ? '' : `<div class="ai-hello"><b>שלום! אני היועץ האישי שלך לטיול${t ? ' "' + esc(t.name) + '"' : ''} 👋</b><div class="small muted">מכיר את המסלול, ההזמנות והתקציב. יכול לחפש מחירים חיים, להמליץ ולהוסיף דברים למסלול.</div></div>`)
+  box.innerHTML = (AI.turns.length ? '' : `<div class="ai-hello"><b>שלום! אני הסוכן החכם שלך לטיול${t ? ' "' + esc(t.name) + '"' : ''} 👋</b><div class="small muted">מכיר את המסלול, ההזמנות והתקציב. יכול לחפש מחירים חיים, להמליץ ולהוסיף דברים למסלול.</div></div>`)
     + AI.turns.map((m, i) => `<div class="ai-msg ${m.role}${m.err ? ' err' : ''}">${m.notes?.length ? `<div class="ai-notes">${m.notes.map(n => `<span class="chip ok">${esc(n)}</span>`).join('')}</div>` : ''}<div>${m.role === 'user' ? esc(m.content) : aiFmt(m.content)}</div>${m.role === 'assistant' ? `<button class="mini" data-aisay="${i}" aria-label="הקראה">🔊</button>` : ''}</div>`).join('')
     + (AI.busy ? `<div class="ai-msg assistant"><div class="ai-notes" id="aiNotes"></div><div id="aiLive"><span class="ai-dots"><i></i><i></i><i></i></span> חושב…</div></div>` : '');
   $('#aiSug').innerHTML = AI.busy ? '' : AI_SUGGEST.map(q => `<button class="chip" data-aiq="${esc(q)}">${esc(q)}</button>`).join('');
@@ -1648,7 +1760,7 @@ function bindTrip(t) {
   if (state.tab === 'itinerary' || state.tab === 'overview') { ensureCoords(t).then(() => loadRoutes(t)); loadRoutes(t); loadWeather(t); }
   $$('[data-watch]').forEach(b => b.onclick = e => { e.stopPropagation(); toggleWatch(b.dataset.watch); });
   $$('[data-unwatch]').forEach(b => b.onclick = () => mutate(x => { x.watch = (x.watch || []).filter(w => w.id !== b.dataset.unwatch); }));
-  $('#checkNow')?.addEventListener('click', () => checkWatches(true));
+  $('#checkNow')?.addEventListener('click', () => checkWatches({ show: true })); if ($('.watchbox')) bindWatchControls($('.watchbox'));
   $('#emailImport')?.addEventListener('click', () => openEmailImport(t));
   $$('[data-rev]').forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); openReviews(b.dataset.rev, b.dataset.revwhere); });
   $$('[data-fav]').forEach(b => b.onclick = e => { e.preventDefault(); e.stopPropagation(); toggleFav(b.dataset.fav); });
@@ -1695,6 +1807,7 @@ function openUserMenu() {
       <div class="add-inline"><input id="shareEmail" type="email" placeholder="email@example.com"><button type="button" class="btn sm primary" id="shareBtn">הזמן</button></div>
       <div class="small muted" style="margin-top:6px">${(t.inviteEmails || []).map(esc).join(', ') || 'אין עדיין שותפים'}</div></div>` : ''}
     <div class="grid">
+      <button type="button" class="btn" id="verBtn">ℹ️ גרסה ${APP_VERSION} · ${APP_BUILD.split(' ')[0].split('-').reverse().join('/')} ${APP_BUILD.split(' ')[1]} · מה חדש</button>
       <div class="theme-seg">${THEMES.map(([id, ico, name]) => `<button type="button" class="btn" data-themepick="${id}">${ico} ${name.split(' ')[0]}</button>`).join('')}</div>
       <button type="button" class="btn" id="exportBtn">⬇️ ייצוא גיבוי (JSON)</button>
       <label class="btn" style="text-align:center">⬆️ ייבוא גיבוי<input type="file" id="importFile" accept="application/json" hidden></label>
@@ -1703,6 +1816,7 @@ function openUserMenu() {
   $('#modalDelete').hidden = true; $('#modalSave').textContent = 'סגירה';
   $('#modalCancel').onclick = () => dlg.close(); $('#modalForm').onsubmit = e => { e.preventDefault(); dlg.close(); };
   dlg.showModal();
+  $('#verBtn').onclick = () => { dlg.close(); openChangelog(); };
   $$('.theme-seg [data-themepick]').forEach(b => b.onclick = () => setTheme(b.dataset.themepick)); applyTheme();
   $('#exportBtn').onclick = () => { const blob = new Blob([JSON.stringify({ app: 'tizon-tour', v: 1, trips: state.trips }, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `tizon-tour-backup-${isoDate(new Date())}.json`; a.click(); };
   $('#importFile').onchange = async e => {
@@ -1741,6 +1855,8 @@ themeMQ?.addEventListener?.('change', () => { if (themePref() === 'auto') applyT
 function onTrips(trips) { state.trips = trips; state.ready = true; render(); }
 async function boot() {
   const topH = () => document.documentElement.style.setProperty('--top-h', ($('.topbar')?.offsetHeight || 61) + 'px'); topH(); window.addEventListener('resize', topH);
+  const vp = $('#verPill'); if (vp) { vp.textContent = 'v' + APP_VERSION; vp.title = 'גרסה ' + APP_VERSION + ' · ' + APP_BUILD; vp.onclick = openChangelog; }
+  try { const seen = localStorage.getItem('tt-ver'); if (seen && seen !== APP_VERSION) setTimeout(() => toast(`✨ עודכן לגרסה ${APP_VERSION} – לחצו על מספר הגרסה לראות מה חדש`), 1200); localStorage.setItem('tt-ver', APP_VERSION); } catch (e) { }
   applyTheme(); $('#themeToggle').onclick = e => { e.stopPropagation(); openThemeMenu(); };
   readRoute();
   $('#homeBtn').onclick = () => go('#/');
