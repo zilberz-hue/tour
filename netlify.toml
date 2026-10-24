@@ -1,6 +1,11 @@
 [build]
   publish = "."
 
+# מפתח ה-Web של Firebase ציבורי מטבעו (נשלח לדפדפן) – לא סוד. האבטחה בחוקי Firestore/Storage.
+# אומרים לסורק הסודות של Netlify להתעלם ממנו בלבד (שאר הסריקה ממשיכה לעבוד).
+[build.environment]
+  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyBoKmPVLFS14NIRsTdaRCNW4YZeGOjzDmA"
+
 [[headers]]
   for = "/sw.js"
   [headers.values]
