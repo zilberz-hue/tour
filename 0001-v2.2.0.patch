@@ -1,0 +1,209 @@
+From 32ed41946928f8cd9b98aa3467883aeaf3863466 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 24 Oct 2026 16:15:09 +0000
+Subject: [PATCH] =?UTF-8?q?v2.2.0=20=E2=80=93=20=D7=9E=D7=A2=D7=A7=D7=91?=
+ =?UTF-8?q?=20=D7=9E=D7=97=D7=99=D7=A8=D7=99=D7=9D=20=D7=90=D7=95=D7=98?=
+ =?UTF-8?q?=D7=95=D7=9E=D7=98=D7=99=20=D7=91=D7=A1=D7=A7=D7=99=D7=A8=D7=AA?=
+ =?UTF-8?q?=20=D7=94=D7=98=D7=99=D7=95=D7=9C?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- monitor.json: תוצאות הבדיקה המתוזמנת, התראות וכללי המעקב (עברית/אנגלית)
+- app.js: כרטיס 'מעקב מחירים אוטומטי' בסקירה, מוצג כשהתאריכים ושדה התעופה של הטיול תואמים
+- help.js, i18n-en.js, גרסה, sw.js, CHANGELOG.md
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01BwwPaDjq1UNp9EJu5Nu7np
+---
+ CHANGELOG.md |  3 ++-
+ app.js       | 31 +++++++++++++++++++++++++++++--
+ help.js      |  3 +++
+ i18n-en.js   |  1 +
+ monitor.json | 49 +++++++++++++++++++++++++++++++++++++++++++++++++
+ styles.css   |  5 +++++
+ sw.js        |  2 +-
+ 7 files changed, 90 insertions(+), 4 deletions(-)
+ create mode 100644 monitor.json
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 39b4e81..b817b5f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,7 +5,8 @@
+ 
+ | גרסה | תאריך ושעה | מה השתנה |
+ |---|---|---|
+-| **2.1.1** | 24/10/2026 19:15 | 🌊 טיול קרמל כפרויקט הראשון בחשבון בענן · כפתור טיול לדוגמה |
++| **2.2.0** | 24/10/2026 19:40 | 🛰️ מעקב מחירים אוטומטי בסקירת הטיול (תוצאות, התראות וכללים מ-monitor.json) |
++| 2.1.1 | 24/10/2026 19:15 | 🌊 טיול קרמל כפרויקט הראשון בחשבון בענן · כפתור טיול לדוגמה |
+ | 2.1.0 | 24/10/2026 18:30 | 🌐 עברית + אנגלית מלאה · ❓ מרכז עזרה וסיור מודרך אינטראקטיבי · ✨ מה חדש אוטומטי מכל גרסה (מקור אמת אחד: help.js) |
+ | 2.0.1 | 24/10/2026 17:25 | לוגו שקוף + גרסה למצב כהה · תיקון בנייה ב-Netlify |
+ | 2.0.0 | 24/10/2026 16:40 | 🏠 מערכת טיולים ללקוח: לוח בקרה עם סטטיסטיקות והיסטוריה (קרובים/היסטוריה/ארכיון/סל מחזור + חיפוש) · 🧭 אשף טיול חדש ב-4 צעדים · ✨ הסוכן החכם בונה מסלול · 👤 פרופיל עם מלווים קבועים · 📜 היסטוריית שינויים · 📄 שכפול טיול |
+diff --git a/app.js b/app.js
+index e23c9a3..45937fb 100644
+--- a/app.js
++++ b/app.js
+@@ -14,9 +14,10 @@ const $ = (s, el = document) => el.querySelector(s);
+ 
+ // ---------- גרסה ויומן שינויים ----------
+ // לעדכן בכל העלאה: APP_VERSION + שורה חדשה בראש CHANGELOG (וגם CACHE ב-sw.js)
+-const APP_VERSION = '2.1.1';
+-const APP_BUILD = '2026-10-24 19:15';
++const APP_VERSION = '2.2.0';
++const APP_BUILD = '2026-10-24 19:40';
+ const CHANGELOG = [
++  ['2.2.0', '24/10/2026 19:40', ['🛰️ מעקב מחירים אוטומטי בסקירת הטיול: תוצאות הבדיקה המתוזמנת, התראות וכללי המעקב']],
+   ['2.1.1', '24/10/2026 19:15', ['🌊 טיול קרמל נטען כפרויקט הראשון בחשבון של צחי בענן', 'כפתור טיול לדוגמה בלוח הבקרה כשאין עדיין טיולים']],
+   ['2.1.0', '24/10/2026 18:30', ['🌐 המערכת כולה בעברית ובאנגלית – כפתור שפה בסרגל העליון, ברירת מחדל לפי המכשיר, כיוון מימין/משמאל אוטומטי', '❓ מרכז עזרה וסיור מודרך אינטראקטיבי: הדגשה של כל יכולת במסך, הראה לי, חיפוש', '✨ מה חדש אוטומטי בכל גרסה – נבנה מרשימת היכולות, והסוכן החכם יודע לענות איך עושים']],
+   ['2.0.1', '24/10/2026 17:25', ['לוגו שקוף (בלי רקע לבן), עם גרסה בהירה לטקסט במצב כהה', 'תוקנה בניית האתר ב-Netlify (סורק הסודות)']],
+@@ -737,6 +738,7 @@ function renderOverview(t) {
+   </div>
+ 
+   ${renderMorning(t)}
++  ${renderMonitor(t)}
+   <div class="grid grid-2 section">
+     <div class="card stat"><div class="lbl">תקציב מתוכנן</div><div class="val">${fmtMoney(tot.planned)}</div><div class="small muted">${(() => { const pc = personCosts(t); return pc ? `<a href="#/trip/${t.id}/budget" data-bvgo="people">${pc.people.map(p => `${esc(p.name)} ${fmtMoney(p.total)}`).join(' · ')}</a>` : fmtMoney(tot.planned / (t.travelers || 1)) + ' לנוסע'; })()}</div></div>
+     <div class="card stat"><div class="lbl">שולם עד כה</div><div class="val" style="color:${tot.actual > tot.planned && tot.planned ? 'var(--danger)' : 'var(--green)'}">${fmtMoney(tot.actual)}</div>
+@@ -1937,6 +1939,31 @@ function openEmailImport(t) {
+ // =====================================================================
+ //  סיכום הבוקר
+ // =====================================================================
++// ---------- מעקב מחירים אוטומטי (משימה מתוזמנת) – נתונים מ-monitor.json ----------
++const monitorState = { d: null, loading: false, tried: false };
++function loadMonitor() {
++  if (monitorState.loading || monitorState.tried) return; monitorState.loading = true;
++  fetch('monitor.json', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(d => { monitorState.d = d; }).catch(() => { })
++    .finally(() => { monitorState.loading = false; monitorState.tried = true; if (monitorState.d && state.tab === 'overview') render(); });
++}
++function renderMonitor(t) {
++  loadMonitor(); const m = monitorState.d; if (!m?.match) return '';
++  if (m.match.start !== t.start || m.match.end !== t.end || (m.match.airport && m.match.airport !== t.airport)) return '';
++  const en = isEn(); const pick = o => (en ? o.en : o.he) || o.he || '';
++  const when = m.updated ? new Date(m.updated).toLocaleString(LOC(), { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
++  const rows = (m.items || []).map(i => { const c = Number(i.change) || 0;
++    return `<li class="li"><div class="ico">${esc(i.icon || '•')}</div><div class="main"><div class="t">${esc(pick(i))}</div>
++      <div class="small muted"><span dir="ltr">${esc(i.base)}</span> → <b dir="ltr" style="color:${c < 0 ? 'var(--green)' : c > 0 ? 'var(--danger)' : 'inherit'}">${esc(i.now)}</b>${c ? ` <span dir="ltr">(${c < 0 ? '↓' : '↑'}$${Math.abs(c)})</span>` : ` · ${en ? 'no change' : 'ללא שינוי'}`}</div>
++      ${(en ? i.noteEn : i.noteHe) ? `<div class="small muted">${esc(en ? i.noteEn : i.noteHe)}</div>` : ''}</div>
++      ${i.link ? `<a class="btn sm" href="${esc(i.link)}" target="_blank" rel="noopener">${en ? 'Book' : 'להזמנה'}</a>` : ''}</li>`; }).join('');
++  const alerts = (m.alerts || []).map(a => `<div class="mon-alert">${esc(pick(a))}${a.link ? ` <a href="${esc(a.link)}" target="_blank" rel="noopener">${en ? 'Book' : 'להזמנה'} ←</a>` : ''}</div>`).join('');
++  const rules = (en ? m.rules?.en : m.rules?.he) || [];
++  return `<div class="card monbox section" id="monitorBox"><div class="row"><b class="spacer">🛰️ ${en ? 'Automatic price monitoring' : 'מעקב מחירים אוטומטי'}</b><span class="small muted">${en ? 'Last check' : 'בדיקה אחרונה'} ${esc(when)}</span></div>
++    ${m.summary ? `<div class="small" style="margin:6px 0">${esc(pick(m.summary))}</div>` : ''}${alerts}
++    <ul class="list">${rows}</ul>
++    ${rules.length ? `<details class="mon-rules"><summary>📋 ${en ? 'Monitoring rules' : 'כללי המעקב'}</summary><ul>${rules.map(r => `<li>${esc(r)}</li>`).join('')}</ul></details>` : ''}</div>`;
++}
++
+ function renderMorning(t) {
+   const today = isoDate(new Date()); const days = tripDays(t);
+   const inTrip = days.includes(today); const d = inTrip ? today : days[0]; if (!d) return '';
+diff --git a/help.js b/help.js
+index 1d21b57..9386917 100644
+--- a/help.js
++++ b/help.js
+@@ -34,6 +34,9 @@ export const FEATURES = [
+   { id: 'overview', v: '1.0.0', area: 'trip', route: 'trip:overview', sel: '#tabbar [data-tab="overview"]', tour: 1,
+     he: ['סקירת הטיול', 'סיכום בוקר, מזג אוויר, תקציב, הזמנות קרובות ומשימות – הכל במבט אחד.'],
+     en: ['Trip overview', 'Morning summary, weather, budget, upcoming bookings and tasks – at a glance.'] },
++  { id: 'monitor', v: '2.2.0', area: 'trip', route: 'trip:overview', sel: '#monitorBox', tour: 1,
++    he: ['מעקב מחירים אוטומטי', 'משימה מתוזמנת בודקת טיסות ומלונות בשבילכם ומציגה כאן את המחיר העדכני, את השינוי מול מחיר הבסיס, התראות על ירידות וקישור להזמנה. ב"כללי המעקב" רואים מה נבדק ומתי מתריעים.'],
++    en: ['Automatic price monitoring', 'A scheduled task checks flights and hotels for you and shows the latest price, the change vs. the baseline, drop alerts and a booking link. "Monitoring rules" shows what is checked and when you get alerted.'] },
+   { id: 'rename', v: '1.0.0', area: 'trip', route: 'trip:overview', sel: '#renameTrip', tour: 0,
+     he: ['שינוי שם והגדרות', '✏️ לשינוי שם הטיול, ⚙️ להגדרות: תאריכים, נוסעים ונקודות יציאה, שערי מטבע.'],
+     en: ['Rename & settings', '✏️ to rename the trip, ⚙️ for settings: dates, travelers and departure points, exchange rates.'] },
+diff --git a/i18n-en.js b/i18n-en.js
+index 17fc11b..df2cdd1 100644
+--- a/i18n-en.js
++++ b/i18n-en.js
+@@ -1,5 +1,6 @@
+ // מילון עברית → English (נוצר מתוך כל טקסטי הממשק). מוסיפים טקסט חדש בממשק → מוסיפים כאן שורה.
+ export default {
++"🛰️ מעקב מחירים אוטומטי בסקירת הטיול: תוצאות הבדיקה המתוזמנת, התראות וכללי המעקב": "🛰️ Automatic price monitoring in the trip overview: scheduled-check results, alerts and monitoring rules",
+ "$ דולר": "$ Dollar",
+ ". טיול": ". Trip",
+ ". תקציב מתוכנן ₪": ". Planned budget ₪",
+diff --git a/monitor.json b/monitor.json
+new file mode 100644
+index 0000000..c586a7a
+--- /dev/null
++++ b/monitor.json
+@@ -0,0 +1,49 @@
++{
++  "updated": "2026-10-24T16:00:00Z",
++  "match": { "start": "2026-11-18", "end": "2026-11-23", "airport": "SFO" },
++  "summary": {
++    "he": "טיסה זולה יותר לרחל: Frontier ‏$175 במקום $227 (אותו הלוך, חזור בלילה). שאר המחירים ללא שינוי.",
++    "en": "Cheaper flight for Rachel: Frontier $175 instead of $227 (same outbound, overnight return). Everything else unchanged."
++  },
++  "alerts": [
++    {
++      "he": "💡 רחל: Frontier ‏$175 (‎↓$52, ‎-23%‎) – הלוך 07:00→11:17 זהה, חזור 23/11 23:29→05:07 (לילה), בלי מזוודה",
++      "en": "💡 Rachel: Frontier $175 (↓$52, -23%) – same 07:00→11:17 outbound, return 23/11 23:29→05:07 (overnight), no checked bag",
++      "link": "https://kiwi.com/u/dfubvw"
++    }
++  ],
++  "items": [
++    { "icon": "✈️", "he": "צחי: TLV ⇄ SFO", "en": "Tzachi: TLV ⇄ SFO", "base": "€957", "now": "€957", "change": 0,
++      "noteHe": "Iberia/BA, 2 עצירות. KLM ‏$1,067 לא אומת בבדיקה האחרונה", "noteEn": "Iberia/BA, 2 stops. KLM $1,067 not verified in last check",
++      "link": "https://www.lastminute.ie/msr/route/searching.do?departureAirport=TLV&arrivalAirport=SFO&outboundDay=18&outboundMonthYear=112026&returnDay=23&returnMonthYear=112026&adults=1&roundtrip=true" },
++    { "icon": "✈️", "he": "רחל: DFW ⇄ SFO", "en": "Rachel: DFW ⇄ SFO", "base": "$227", "now": "$175", "change": -52,
++      "noteHe": "חזור בלילה 23:29 · המסלול המקורי (חזור 11:27) עדיין $226", "noteEn": "Overnight return 23:29 · original itinerary (11:27 return) still $226",
++      "link": "https://kiwi.com/u/dfubvw" },
++    { "icon": "🏨", "he": "Briarwood Inn · קרמל (4 לילות)", "en": "Briarwood Inn · Carmel (4 nights)", "base": "$1,019", "now": "$1,019", "change": 0,
++      "noteHe": "Carmel Resort Inn ‏$916 · Comfort Inn ‏$1,040", "noteEn": "Carmel Resort Inn $916 · Comfort Inn $1,040",
++      "link": "https://www.booking.com/hotel/us/briarwood-inn.html?checkin=2026-11-19&checkout=2026-11-23&group_adults=2" },
++    { "icon": "🏨", "he": "Harbor View Inn · האף מון ביי", "en": "Harbor View Inn · Half Moon Bay", "base": "$175", "now": "$175", "change": 0,
++      "noteHe": "Miramar Inn ‏$150 · Half Moon Bay Lodge ‏$189 (8.4)", "noteEn": "Miramar Inn $150 · Half Moon Bay Lodge $189 (8.4)",
++      "link": "https://www.booking.com/hotel/us/harbor-view-inn.html?checkin=2026-11-18&checkout=2026-11-19&group_adults=2" }
++  ],
++  "rules": {
++    "he": [
++      "בודקים: טיסת צחי TLV⇄SFO, טיסת רחל DFW⇄SFO (18/11–23/11), מלון בכרמל 19/11–23/11, מלון בהאף מון ביי 18/11–19/11",
++      "מקורות: Kiwi.com, lastminute.com, Booking.com (ו-Expedia אם מחובר)",
++      "בסיס (24/10): KLM ‏$1,067 · BA ‏€1,065 · Iberia/BA ‏€957 · Frontier ‏$227 · Briarwood ‏$1,019 · Carmel Resort Inn ‏$916 · Comfort Inn ‏$1,040 · Harbor View ‏$175 · Miramar ‏$150",
++      "📉 התראה על ירידה של 5% ומעלה, או אפשרות חדשה שזולה או משתלמת יותר בבירור",
++      "בהשוואה מתחשבים במזוודה כלולה, במספר העצירות ובנחיתה בסביבות 11:00–13:00 ב-18/11, כדי ששניכם תיפגשו ב-SFO",
++      "אין שינוי משמעותי – אין התראה",
++      "לא מזמינים כלום. מ-18/11 המעקב נעצר"
++    ],
++    "en": [
++      "Checks: Tzachi TLV⇄SFO, Rachel DFW⇄SFO (18/11–23/11), Carmel hotel 19/11–23/11, Half Moon Bay hotel 18/11–19/11",
++      "Sources: Kiwi.com, lastminute.com, Booking.com (and Expedia if connected)",
++      "Baseline (24/10): KLM $1,067 · BA €1,065 · Iberia/BA €957 · Frontier $227 · Briarwood $1,019 · Carmel Resort Inn $916 · Comfort Inn $1,040 · Harbor View $175 · Miramar $150",
++      "📉 Alert on a drop of 5% or more, or a new option that is clearly cheaper or better value",
++      "Comparison considers included bags, number of stops and landing around 11:00–13:00 on 18/11 so you both meet at SFO",
++      "No meaningful change – no alert",
++      "Nothing is booked. Monitoring stops from 18/11"
++    ]
++  }
++}
+diff --git a/styles.css b/styles.css
+index a518f7b..5fa31d4 100644
+--- a/styles.css
++++ b/styles.css
+@@ -265,6 +265,11 @@ details summary{cursor:pointer}
+ .rides{display:inline-flex;gap:2px}
+ .settle{margin-top:10px;padding:10px;border-radius:12px;background:rgba(124,181,24,.08);display:grid;gap:6px}
+ .watchbox{margin:10px 0}
++.monbox .mon-alert{background:color-mix(in srgb,var(--green) 14%,transparent);border:1px solid var(--green);border-radius:10px;padding:8px 10px;margin:6px 0;font-weight:600}
++.monbox .mon-alert a{color:inherit;text-decoration:underline}
++.mon-rules{margin-top:8px}
++.mon-rules summary{cursor:pointer;font-weight:600}
++.mon-rules ul{margin:6px 0 0;padding-inline-start:18px;line-height:1.6}
+ .spark{vertical-align:middle}
+ .yes{color:var(--green)} .no{color:var(--danger)}
+ .morning .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px}
+diff --git a/sw.js b/sw.js
+index fe01f82..3558386 100644
+--- a/sw.js
++++ b/sw.js
+@@ -1,5 +1,5 @@
+ // Tizon Tour – עבודה אופליין: האפליקציה, הנתונים (במכשיר), המפה ואריחי מפה שנצפו
+-const CACHE = 'tizon-tour-2.1.1';
++const CACHE = 'tizon-tour-2.2.0';
+ const SHELL = ['./', 'index.html', 'styles.css', 'app.js', 'i18n.js', 'i18n-en.js', 'help.js', 'firebase-config.js', 'logo.svg', 'logo.png', 'logo-dark.png', 'manifest.webmanifest'];
+ const RUNTIME_OK = /cdnjs\.cloudflare\.com|tile\.openstreetmap\.org|fonts\.(googleapis|gstatic)\.com/;
+ self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
+-- 
+2.43.0
+
